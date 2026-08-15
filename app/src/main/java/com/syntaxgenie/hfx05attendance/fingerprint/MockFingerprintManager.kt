@@ -1,6 +1,7 @@
 package com.syntaxgenie.hfx05attendance.fingerprint
 
 class MockFingerprintManager : FingerprintManager {
+    override val implementationName = "MOCK"
     private var initialized = false
 
     override fun initialize(): FingerprintResult<Unit> {
@@ -31,6 +32,16 @@ class MockFingerprintManager : FingerprintManager {
         } else {
             FingerprintResult.Failure("Fingerprint manager is not initialized")
         }
+
+    override fun compare(
+        reference: FingerprintSample,
+        candidate: FingerprintSample,
+    ): FingerprintResult<FingerprintComparison> = FingerprintResult.Success(
+        FingerprintComparison(
+            score = if (reference.template.contentEquals(candidate.template)) 100 else 0,
+            isMatch = reference.template.contentEquals(candidate.template),
+        ),
+    )
 
     override fun release() {
         initialized = false
