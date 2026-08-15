@@ -35,6 +35,9 @@
     <string name="run_sensor_probe">RUN SENSOR PROBE</string>
     <string name="active_probe_running">Running one sensor-ID transaction…</string>
     <string name="real_capture_test">REAL FINGERPRINT CAPTURE TEST</string>
+    <string name="legacy_raw_capture">RAW CAPTURE (LEGACY / REFERENCE)</string>
+    <string name="scanner_layer_capture">SCANNER LAYER CAPTURE</string>
+    <string name="scanner_layer_capture_title">Scanner layer capture</string>
     <string name="view_last_capture">VIEW LAST CAPTURE</string>
     <string name="capture_preview">Last locally captured fingerprint image</string>
     <string name="capture_hardware_unavailable">HF-X05 hardware unavailable on this device</string>

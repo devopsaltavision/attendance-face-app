@@ -14,7 +14,9 @@
         <Button android:id="@+id/activeSensorProbeButton" android:layout_width="match_parent"
             android:layout_height="56dp" android:layout_marginTop="10dp" android:text="@string/active_sensor_probe" />
         <Button android:id="@+id/realCaptureButton" android:layout_width="match_parent"
-            android:layout_height="56dp" android:layout_marginTop="10dp" android:text="@string/real_capture_test" />
+            android:layout_height="56dp" android:layout_marginTop="10dp" android:text="@string/legacy_raw_capture" />
+        <Button android:id="@+id/scannerLayerCaptureButton" android:layout_width="match_parent"
+            android:layout_height="56dp" android:layout_marginTop="10dp" android:text="@string/scanner_layer_capture" />
         <Button android:id="@+id/viewLastCaptureButton" style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp"
             android:text="@string/view_last_capture" />
