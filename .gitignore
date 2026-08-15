@@ -1,0 +1,48 @@
+# Android Studio / IntelliJ
+*.iml
+.idea/
+
+# Gradle
+.gradle/
+**/build/
+.kotlin/
+
+# Local Android SDK configuration
+local.properties
+
+# Native build outputs
+.externalNativeBuild/
+.cxx/
+
+# Android Studio generated files
+captures/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Signing keys / credentials
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+secrets.properties
+
+# Environment files
+.env
+.env.*
+
+# Built application packages
+*.apk
+*.aab
+
+# Decompiled Better HR reference - must never be part of this repo
+BetterHR-JADX/
+
+# HF-X05 SDK/license credentials - never commit if encountered
+**/assets/account
+**/assets/password
+**/license.txt
