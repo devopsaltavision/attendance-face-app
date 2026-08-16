@@ -8,6 +8,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.appbar.MaterialToolbar
 import com.syntaxgenie.hfx05attendance.admin.AdminAuthResult
 import com.syntaxgenie.hfx05attendance.admin.AdminAuthenticator
 import com.syntaxgenie.hfx05attendance.admin.UnconfiguredAdminAuthenticator
@@ -18,7 +19,7 @@ class AdminLoginActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_admin_login)
-        findViewById<View>(R.id.adminLoginBack).setOnClickListener { finish() }
+        findViewById<MaterialToolbar>(R.id.adminLoginToolbar).setNavigationOnClickListener { finish() }
         val message = findViewById<TextView>(R.id.adminAuthMessage)
         val username = findViewById<EditText>(R.id.adminUsername)
         val password = findViewById<EditText>(R.id.adminPassword)

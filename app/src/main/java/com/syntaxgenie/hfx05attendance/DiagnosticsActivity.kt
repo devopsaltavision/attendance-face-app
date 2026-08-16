@@ -12,6 +12,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.appbar.MaterialToolbar
 import com.syntaxgenie.hfx05attendance.fingerprint.LowLevelAccessProbe
 import com.syntaxgenie.hfx05attendance.fingerprint.RawCaptureStorage
 import com.syntaxgenie.hfx05attendance.fingerprint.X05HardwareProbe
@@ -42,6 +43,7 @@ class DiagnosticsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_diagnostics)
+        findViewById<MaterialToolbar>(R.id.diagnosticsToolbar).setNavigationOnClickListener { finish() }
         statusText = findViewById(R.id.statusText)
         reportText = findViewById(R.id.diagnosticText)
         runButton = findViewById(R.id.runFullDiagnosticsButton)

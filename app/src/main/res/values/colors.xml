@@ -2,13 +2,20 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="attendance_ready_background">#FFF7F9FC</color>
-    <color name="attendance_ready_visual">#FF64748B</color>
-    <color name="attendance_scanning">#FF2563EB</color>
+    <color name="attendance_ready_background">#FF0B0E14</color>
+    <color name="attendance_ready_visual">#FF7890B5</color>
+    <color name="attendance_scanning">#FF7C6CF2</color>
     <color name="attendance_success">#FF15803D</color>
     <color name="attendance_success_foreground">#FFFFFFFF</color>
     <color name="attendance_failure">#FFB91C1C</color>
     <color name="attendance_warning">#FFD97706</color>
-    <color name="attendance_surface">#FFFFFFFF</color>
-    <color name="attendance_text">#FF172033</color>
+    <color name="attendance_surface">#FF171B24</color>
+    <color name="attendance_surface_variant">#FF202632</color>
+    <color name="attendance_text">#FFF5F7FA</color>
+    <color name="attendance_text_secondary">#FFA9B2C3</color>
+    <color name="kiosk_system_bar">#FF080A0F</color>
+    <color name="fingerprint_guide">#FF252C38</color>
+    <color name="fingerprint_zone_pending">#FF60728F</color>
+    <color name="fingerprint_zone_active">#FF8B7CFF</color>
+    <color name="fingerprint_zone_complete">#FF22C55E</color>
 </resources>

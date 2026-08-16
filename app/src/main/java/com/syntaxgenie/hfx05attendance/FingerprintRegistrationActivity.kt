@@ -1,13 +1,18 @@
 package com.syntaxgenie.hfx05attendance
 
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.Spinner
 import android.widget.TextView
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentLowerLayerError
 import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentProgress
 import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentRequest
@@ -20,17 +25,23 @@ import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.BiometricDat
 import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.LocalBiometricRepository
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.hfx05.Hfx05FingerprintScanner
 import com.syntaxgenie.hfx05attendance.ui.FingerprintVisualView
+import com.syntaxgenie.hfx05attendance.ui.RegistrationEmployeeUiModel
+import com.syntaxgenie.hfx05attendance.ui.displayName
 
 class FingerprintRegistrationActivity : AppCompatActivity() {
     private lateinit var employeeId: EditText
-    private lateinit var finger: Spinner
+    private lateinit var finger: MaterialAutoCompleteTextView
     private lateinit var visual: FingerprintVisualView
     private lateinit var progressText: TextView
     private lateinit var detailsText: TextView
+    private lateinit var guidanceText: TextView
     private lateinit var dots: LinearLayout
     private lateinit var startButton: Button
     private lateinit var captureButton: Button
     private lateinit var cancelButton: Button
+    private lateinit var doneButton: Button
+    private var selectedFinger = FingerPosition.RIGHT_INDEX
+    private var employeeModel: RegistrationEmployeeUiModel? = null
     private var running = false
     private val matcher by lazy { SourceAfisFingerprintMatcher() }
     private val database by lazy { BiometricDatabase.create(applicationContext) }
@@ -45,25 +56,30 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
         visual = findViewById(R.id.registrationFingerprintVisual)
         progressText = findViewById(R.id.registrationProgress)
         detailsText = findViewById(R.id.registrationDetails)
+        guidanceText = findViewById(R.id.registrationGuidance)
         dots = findViewById(R.id.registrationDots)
         startButton = findViewById(R.id.registrationStartButton)
         captureButton = findViewById(R.id.registrationCaptureButton)
         cancelButton = findViewById(R.id.registrationCancelButton)
-        finger.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
-            FingerPosition.entries.map(FingerPosition::name))
-        findViewById<Button>(R.id.registrationBackButton).setOnClickListener { finish() }
+        doneButton = findViewById(R.id.registrationDoneButton)
+        findViewById<MaterialToolbar>(R.id.registrationToolbar).setNavigationOnClickListener { finish() }
+        val fingerLabels = FingerPosition.entries.map { it.displayName(this) }
+        finger.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, fingerLabels))
+        finger.setText(selectedFinger.displayName(this), false)
+        finger.setOnItemClickListener { _, _, position, _ -> selectedFinger = FingerPosition.entries[position] }
+        configureEmployee()
         startButton.setOnClickListener { startEnrollment() }
         captureButton.setOnClickListener { captureNext() }
         cancelButton.setOnClickListener { render(service.cancel()) }
+        doneButton.setOnClickListener { finish() }
         updateProgress(0, 5)
         refreshControls()
     }
 
     private fun startEnrollment() {
-        val id = employeeId.text.toString().trim()
+        val id = employeeModel?.employeeId ?: employeeId.text.toString().trim()
         if (id.isBlank()) { employeeId.error = getString(R.string.employee_id_required); return }
-        val selected = FingerPosition.entries[finger.selectedItemPosition]
-        runEnrollmentOperation("fingerprint-enrollment-start") { service.start(EnrollmentRequest(id, selected)) }
+        runEnrollmentOperation("fingerprint-enrollment-start") { service.start(EnrollmentRequest(id, selectedFinger)) }
     }
 
     private fun captureNext() = runEnrollmentOperation("fingerprint-enrollment-capture") {
@@ -90,7 +106,10 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
                     visual.render(FingerprintVisualView.State.SUCCESS)
                     progressText.setText(R.string.fingerprint_registered)
                     detailsText.text = getString(R.string.registration_complete_details,
-                        session.employeeId, session.fingerPosition.name, session.completedCaptures)
+                        employeeModel?.displayName ?: session.employeeId,
+                        session.employeeId,
+                        session.fingerPosition.displayName(this),
+                        session.completedCaptures)
                 }
                 EnrollmentState.CANCELLED -> {
                     visual.render(FingerprintVisualView.State.READY)
@@ -104,17 +123,16 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
                 }
             }
             is EnrollmentResult.Error -> {
-                visual.render(FingerprintVisualView.State.ERROR)
-                progressText.text = "${result.error.userMessage}\n${result.error.code}"
-                detailsText.text = lowerLayerMessage(result.lowerLayerError)
+                progressText.text = if (isDebugBuild()) "${result.error.userMessage}\n${result.error.code}"
+                    else result.error.userMessage
+                detailsText.text = if (isDebugBuild()) lowerLayerMessage(result.lowerLayerError) else ""
             }
         }
         refreshControls()
     }
 
     private fun renderProgress(progress: EnrollmentProgress) {
-        visual.render(if (progress.state == EnrollmentState.CAPTURING) FingerprintVisualView.State.SCANNING
-            else FingerprintVisualView.State.READY)
+        updateProgress(progress.completedCaptures, progress.requiredCaptures)
         progressText.text = when (progress.state) {
             EnrollmentState.CAPTURING -> getString(R.string.capturing_progress, progress.captureNumber, progress.requiredCaptures)
             EnrollmentState.PROCESSING -> getString(R.string.processing_progress, progress.captureNumber, progress.requiredCaptures)
@@ -124,6 +142,8 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
     }
 
     private fun updateProgress(completed: Int, required: Int) {
+        visual.renderEnrollmentProgress(completed, required)
+        guidanceText.setText(if (completed == 0) R.string.capture_guidance_first else R.string.capture_guidance_repeat)
         dots.removeAllViews()
         repeat(required) { index ->
             android.view.View(this).also { dot ->
@@ -143,14 +163,48 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
         captureButton.isEnabled = !running && state in setOf(EnrollmentState.READY, EnrollmentState.FAILED)
         captureButton.setText(if (state == EnrollmentState.FAILED) R.string.retry_enrollment_save else R.string.capture_next)
         cancelButton.isEnabled = !running && state in setOf(EnrollmentState.READY, EnrollmentState.FAILED)
-        employeeId.isEnabled = startButton.isEnabled
+        startButton.visibility = if (state == null || state == EnrollmentState.CANCELLED) View.VISIBLE else View.GONE
+        captureButton.visibility = if (state in setOf(EnrollmentState.READY, EnrollmentState.FAILED)) View.VISIBLE else View.GONE
+        cancelButton.visibility = if (state in setOf(EnrollmentState.READY, EnrollmentState.FAILED)) View.VISIBLE else View.GONE
+        doneButton.visibility = if (state == EnrollmentState.COMPLETED) View.VISIBLE else View.GONE
+        employeeId.isEnabled = startButton.isEnabled && employeeModel == null
         finger.isEnabled = startButton.isEnabled
     }
+
+    private fun configureEmployee() {
+        val suppliedId = intent.getStringExtra(EXTRA_EMPLOYEE_ID)?.trim().orEmpty()
+        val suppliedName = intent.getStringExtra(EXTRA_EMPLOYEE_DISPLAY_NAME)?.trim()?.takeIf(String::isNotEmpty)
+        employeeModel = suppliedId.takeIf(String::isNotEmpty)?.let { RegistrationEmployeeUiModel(it, suppliedName) }
+        val card = findViewById<View>(R.id.selectedEmployeeCard)
+        val manual = findViewById<View>(R.id.manualEmployeeContainer)
+        employeeModel?.let { employee ->
+            card.visibility = View.VISIBLE
+            manual.visibility = View.GONE
+            findViewById<TextView>(R.id.selectedEmployeeName).text = employee.displayName ?: employee.employeeId
+            findViewById<TextView>(R.id.selectedEmployeeId).text = employee.employeeId
+        } ?: run {
+            card.visibility = View.GONE
+            manual.visibility = View.VISIBLE
+        }
+    }
+
+    private fun isDebugBuild() = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
 
     private fun lowerLayerMessage(error: EnrollmentLowerLayerError?): String = when (error) {
         is EnrollmentLowerLayerError.Scanner -> "Scanner: ${error.value.error.code} ${error.value.error.userMessage}"
         is EnrollmentLowerLayerError.Matcher -> "Matcher: ${error.value.error.code} ${error.value.error.userMessage}"
         is EnrollmentLowerLayerError.Repository -> "Repository: ${error.value.error.code} ${error.value.error.userMessage}"
         null -> ""
+    }
+
+    companion object {
+        const val EXTRA_EMPLOYEE_ID = "employeeId"
+        const val EXTRA_EMPLOYEE_DISPLAY_NAME = "employeeDisplayName"
+
+        fun createIntent(context: Context, employeeId: String, employeeDisplayName: String): Intent =
+            Intent(context, FingerprintRegistrationActivity::class.java).apply {
+                putExtra(EXTRA_EMPLOYEE_ID, employeeId)
+                putExtra(EXTRA_EMPLOYEE_DISPLAY_NAME, employeeDisplayName)
+            }
     }
 }
