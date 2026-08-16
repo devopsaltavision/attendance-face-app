@@ -18,6 +18,10 @@
         <activity
             android:name=".SettingsActivity"
             android:exported="false" />
+        <activity android:name=".DiagnosticsActivity" android:exported="false" />
+        <activity android:name=".FingerprintRegistrationActivity" android:exported="false" />
+        <activity android:name=".AdminDashboardActivity" android:exported="false" />
+        <activity android:name=".AdminLoginActivity" android:exported="false" />
         <activity
             android:name=".attendance.AttendanceActivity"
             android:exported="false" />

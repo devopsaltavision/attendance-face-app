@@ -2,4 +2,13 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="attendance_ready_background">#FFF7F9FC</color>
+    <color name="attendance_ready_visual">#FF64748B</color>
+    <color name="attendance_scanning">#FF2563EB</color>
+    <color name="attendance_success">#FF15803D</color>
+    <color name="attendance_success_foreground">#FFFFFFFF</color>
+    <color name="attendance_failure">#FFB91C1C</color>
+    <color name="attendance_warning">#FFD97706</color>
+    <color name="attendance_surface">#FFFFFFFF</color>
+    <color name="attendance_text">#FF172033</color>
 </resources>

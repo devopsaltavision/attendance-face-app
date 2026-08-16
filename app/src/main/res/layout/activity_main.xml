@@ -1,53 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true">
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="vertical" android:padding="20dp">
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="@string/fingerprint_test_title" android:textAlignment="center"
-            android:textAppearance="@style/TextAppearance.Material3.HeadlineMedium" android:layout_marginBottom="16dp" />
-        <TextView android:id="@+id/statusText" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:minHeight="64dp" android:gravity="center_vertical"
-            android:background="@drawable/fingerprint_scan_area" android:padding="12dp" />
-        <Button android:id="@+id/runFullDiagnosticsButton" android:layout_width="match_parent"
-            android:layout_height="56dp" android:layout_marginTop="16dp" android:text="@string/run_full_diagnostics" />
-        <Button android:id="@+id/activeSensorProbeButton" android:layout_width="match_parent"
-            android:layout_height="56dp" android:layout_marginTop="10dp" android:text="@string/active_sensor_probe" />
-        <Button android:id="@+id/realCaptureButton" android:layout_width="match_parent"
-            android:layout_height="56dp" android:layout_marginTop="10dp" android:text="@string/legacy_raw_capture" />
-        <Button android:id="@+id/scannerLayerCaptureButton" android:layout_width="match_parent"
-            android:layout_height="56dp" android:layout_marginTop="10dp" android:text="@string/scanner_layer_capture" />
-        <Button android:id="@+id/viewLastCaptureButton" style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp"
-            android:text="@string/view_last_capture" />
-        <ImageView android:id="@+id/capturePreview" android:layout_width="256dp" android:layout_height="360dp"
-            android:layout_gravity="center_horizontal" android:layout_marginTop="12dp"
-            android:contentDescription="@string/capture_preview" android:scaleType="fitCenter" android:visibility="gone" />
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="24dp" android:text="@string/engineering_enrollment_title"
-            android:textAppearance="@style/TextAppearance.Material3.TitleLarge" />
-        <EditText android:id="@+id/enrollmentEmployeeId" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginTop="8dp"
-            android:hint="@string/employee_id" android:inputType="text" />
-        <Spinner android:id="@+id/enrollmentFingerPosition" android:layout_width="match_parent"
-            android:layout_height="48dp" android:layout_marginTop="8dp" />
-        <TextView android:id="@+id/enrollmentProgressText" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginTop="8dp"
-            android:text="@string/enrollment_not_started" />
-        <Button android:id="@+id/startEnrollmentButton" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginTop="8dp"
-            android:text="@string/start_enrollment" />
-        <Button android:id="@+id/captureEnrollmentButton" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginTop="8dp"
-            android:enabled="false" android:text="@string/capture_next" />
-        <Button android:id="@+id/cancelEnrollmentButton" style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="8dp" android:enabled="false" android:text="@string/cancel_enrollment" />
-        <Button android:id="@+id/copyDiagnosticsButton" style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp"
-            android:enabled="false" android:text="@string/copy_complete_report" />
-        <TextView android:id="@+id/diagnosticText" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginTop="16dp" android:fontFamily="monospace"
-            android:textIsSelectable="true" android:textSize="11sp" />
-    </LinearLayout>
-</ScrollView>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/attendanceHomeRoot" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@color/attendance_ready_background" android:padding="24dp">
+    <ImageButton android:id="@+id/adminButton" android:layout_width="56dp" android:layout_height="56dp"
+        android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="@string/admin_settings"
+        android:src="@android:drawable/ic_menu_preferences" app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+    <TextView android:id="@+id/currentTime" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:textAppearance="@style/TextAppearance.Material3.DisplayMedium" android:textStyle="bold"
+        app:layout_constraintTop_toBottomOf="@id/adminButton" app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+    <TextView android:id="@+id/currentDate" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:textAppearance="@style/TextAppearance.Material3.TitleMedium" app:layout_constraintTop_toBottomOf="@id/currentTime"
+        app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent" />
+    <com.syntaxgenie.hfx05attendance.ui.FingerprintVisualView android:id="@+id/fingerprintVisual"
+        android:layout_width="180dp" android:layout_height="216dp" android:contentDescription="@string/fingerprint_visual_description"
+        app:layout_constraintTop_toBottomOf="@id/currentDate" app:layout_constraintBottom_toTopOf="@id/attendanceStatusTitle"
+        app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent" />
+    <TextView android:id="@+id/attendanceStatusTitle" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:gravity="center" android:textAppearance="@style/TextAppearance.Material3.HeadlineMedium" android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@id/attendanceInstruction" />
+    <TextView android:id="@+id/attendanceInstruction" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" android:gravity="center" android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+        app:layout_constraintBottom_toTopOf="@id/attendanceDetail" />
+    <TextView android:id="@+id/attendanceDetail" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" android:gravity="center" android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
+        app:layout_constraintBottom_toTopOf="@id/homeSyncStatus" />
+    <TextView android:id="@+id/homeSyncStatus" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:background="@drawable/attendance_status_card" android:gravity="center" android:padding="14dp"
+        android:text="@string/sync_not_configured" android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+        app:layout_constraintBottom_toBottomOf="parent" />
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent"
+    android:layout_height="match_parent" android:fillViewport="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"
+        android:padding="24dp">
+        <Button android:id="@+id/adminLoginBack" style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content" android:layout_height="48dp" android:text="@string/back_to_attendance" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp"
+            android:text="@string/admin_login" android:textAppearance="@style/TextAppearance.Material3.HeadlineLarge" />
+        <EditText android:id="@+id/adminUsername" android:layout_width="match_parent" android:layout_height="56dp"
+            android:layout_marginTop="32dp" android:hint="@string/username" android:inputType="text" />
+        <EditText android:id="@+id/adminPassword" android:layout_width="match_parent" android:layout_height="56dp"
+            android:layout_marginTop="12dp" android:hint="@string/password" android:inputType="textPassword" />
+        <Button android:id="@+id/adminLoginButton" android:layout_width="match_parent" android:layout_height="56dp"
+            android:layout_marginTop="24dp" android:text="@string/login" />
+        <TextView android:id="@+id/adminAuthMessage" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="16dp" android:text="@string/admin_auth_unavailable" />
+        <Button android:id="@+id/debugAdminButton" style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="24dp"
+            android:text="@string/debug_open_admin" android:visibility="gone" />
+    </LinearLayout>
+</ScrollView>

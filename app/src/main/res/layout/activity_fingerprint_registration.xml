@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent"
+    android:layout_height="match_parent" android:fillViewport="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="24dp">
+        <Button android:id="@+id/registrationBackButton" style="@style/Widget.Material3.Button.TextButton" android:layout_width="wrap_content" android:layout_height="48dp" android:text="@string/back_to_admin" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/fingerprint_registration" android:textAppearance="@style/TextAppearance.Material3.HeadlineLarge" />
+        <EditText android:id="@+id/registrationEmployeeId" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="20dp" android:hint="@string/employee_id" android:inputType="text" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="@string/employee_selector_future" android:textAppearance="@style/TextAppearance.Material3.BodySmall" />
+        <Spinner android:id="@+id/registrationFinger" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="14dp" />
+        <com.syntaxgenie.hfx05attendance.ui.FingerprintVisualView android:id="@+id/registrationFingerprintVisual" android:layout_width="140dp" android:layout_height="168dp" android:layout_gravity="center_horizontal" android:contentDescription="@string/fingerprint_visual_description" />
+        <TextView android:id="@+id/registrationProgress" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:text="@string/capture_zero_of_five" android:textAppearance="@style/TextAppearance.Material3.TitleLarge" />
+        <LinearLayout android:id="@+id/registrationDots" android:layout_width="wrap_content" android:layout_height="24dp" android:layout_gravity="center_horizontal" android:layout_marginTop="12dp" android:gravity="center" android:orientation="horizontal" />
+        <TextView android:id="@+id/registrationDetails" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:gravity="center" />
+        <Button android:id="@+id/registrationStartButton" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="20dp" android:text="@string/start_enrollment" />
+        <Button android:id="@+id/registrationCaptureButton" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="10dp" android:text="@string/capture_next" />
+        <Button android:id="@+id/registrationCancelButton" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="10dp" android:text="@string/cancel_enrollment" />
+    </LinearLayout>
+</ScrollView>
