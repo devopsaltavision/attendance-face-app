@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">HF-X05 Attendance</string>
+    <string name="app_name">SLH FP</string>
     <string name="attendance_title">Attendance</string>
     <string name="register_fingerprint">Register Fingerprint</string>
     <string name="mark_attendance">Mark Attendance</string>

@@ -27,6 +27,7 @@ import com.syntaxgenie.hfx05attendance.fingerprint.scanner.hfx05.Hfx05Fingerprin
 import com.syntaxgenie.hfx05attendance.ui.FingerprintVisualView
 import com.syntaxgenie.hfx05attendance.ui.RegistrationEmployeeUiModel
 import com.syntaxgenie.hfx05attendance.ui.displayName
+import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
 
 class FingerprintRegistrationActivity : AppCompatActivity() {
     private lateinit var employeeId: EditText
@@ -51,6 +52,7 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_fingerprint_registration)
+        KioskWindowInsets.apply(this, findViewById(R.id.registrationRoot))
         employeeId = findViewById(R.id.registrationEmployeeId)
         finger = findViewById(R.id.registrationFinger)
         visual = findViewById(R.id.registrationFingerprintVisual)

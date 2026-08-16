@@ -1,7 +1,16 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.HFX05Attendance" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your dark theme here. -->
-        <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
+<resources>
+    <!-- Keep the kiosk palette controlled by the app, independent of system night mode. -->
+    <style name="Base.Theme.HFX05Attendance" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="colorPrimary">@color/attendance_scanning</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSurface">@color/attendance_surface</item>
+        <item name="colorOnSurface">@color/attendance_text</item>
+        <item name="android:colorBackground">@color/attendance_ready_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/kiosk_system_bar</item>
+        <item name="android:navigationBarColor">@color/kiosk_system_bar</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="toolbarStyle">@style/Widget.SlhFp.Toolbar</item>
     </style>
 </resources>

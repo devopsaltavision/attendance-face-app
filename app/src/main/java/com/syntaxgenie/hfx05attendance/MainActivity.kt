@@ -11,6 +11,7 @@ import androidx.core.content.ContextCompat
 import com.syntaxgenie.hfx05attendance.attendance.AttendanceHomeModel
 import com.syntaxgenie.hfx05attendance.attendance.AttendanceHomeState
 import com.syntaxgenie.hfx05attendance.ui.FingerprintVisualView
+import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -37,6 +38,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         root = findViewById(R.id.attendanceHomeRoot)
+        KioskWindowInsets.apply(this, root)
         timeText = findViewById(R.id.currentTime)
         dateText = findViewById(R.id.currentDate)
         visual = findViewById(R.id.fingerprintVisual)

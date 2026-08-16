@@ -6,11 +6,13 @@ import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.appbar.MaterialToolbar
+import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
 
 class AdminDashboardActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_admin_dashboard)
+        KioskWindowInsets.apply(this, findViewById(R.id.adminDashboardRoot))
         findViewById<MaterialToolbar>(R.id.adminDashboardToolbar).setNavigationOnClickListener { finish() }
         findViewById<Button>(R.id.registrationButton).setOnClickListener {
             startActivity(Intent(this, FingerprintRegistrationActivity::class.java))

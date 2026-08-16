@@ -18,4 +18,7 @@
     <color name="fingerprint_zone_pending">#FF60728F</color>
     <color name="fingerprint_zone_active">#FF8B7CFF</color>
     <color name="fingerprint_zone_complete">#FF22C55E</color>
+    <color name="launcher_background">#FF09162B</color>
+    <color name="configuration_configured">#FF4ADE80</color>
+    <color name="configuration_missing">#FFFBBF24</color>
 </resources>

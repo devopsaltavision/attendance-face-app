@@ -10,6 +10,14 @@
         <item name="android:statusBarColor">@color/kiosk_system_bar</item>
         <item name="android:navigationBarColor">@color/kiosk_system_bar</item>
         <item name="android:windowLightNavigationBar">false</item>
+        <item name="toolbarStyle">@style/Widget.SlhFp.Toolbar</item>
+    </style>
+
+    <style name="Widget.SlhFp.Toolbar" parent="Widget.Material3.Toolbar">
+        <item name="android:minHeight">?attr/actionBarSize</item>
+        <item name="android:background">@color/attendance_surface</item>
+        <item name="titleTextColor">@color/attendance_text</item>
+        <item name="subtitleTextColor">@color/attendance_text_secondary</item>
     </style>
 
     <style name="Theme.HFX05Attendance" parent="Base.Theme.HFX05Attendance" />

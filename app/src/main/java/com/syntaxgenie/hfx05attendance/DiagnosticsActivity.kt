@@ -21,6 +21,7 @@ import com.syntaxgenie.hfx05attendance.fingerprint.scanner.ScannerProgress
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.ScannerResult
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.diagnostics.CaptureImageStatisticsCalculator
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.hfx05.Hfx05FingerprintScanner
+import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -43,6 +44,7 @@ class DiagnosticsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_diagnostics)
+        KioskWindowInsets.apply(this, findViewById(R.id.diagnosticsRoot))
         findViewById<MaterialToolbar>(R.id.diagnosticsToolbar).setNavigationOnClickListener { finish() }
         statusText = findViewById(R.id.statusText)
         reportText = findViewById(R.id.diagnosticText)

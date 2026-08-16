@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:id="@+id/deviceSettingsRoot" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
     <com.google.android.material.appbar.MaterialToolbar android:id="@+id/deviceSettingsToolbar" android:layout_width="match_parent" android:layout_height="?attr/actionBarSize" android:background="@color/attendance_surface" app:navigationIcon="?attr/homeAsUpIndicator" app:title="@string/device_settings" />
     <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="24dp">
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/backend_environment" android:textColor="@color/attendance_text_secondary" />
             <TextView android:id="@+id/backendEnvironmentValue" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:text="@string/api_base_url" android:textColor="@color/attendance_text_secondary" />
-            <TextView android:id="@+id/backendBaseUrlValue" android:layout_width="match_parent" android:layout_height="wrap_content" android:textIsSelectable="true" />
+            <TextView android:id="@+id/backendBaseUrlValue" android:layout_width="match_parent" android:layout_height="wrap_content" android:breakStrategy="balanced" android:textColor="@color/attendance_text" android:textIsSelectable="true" />
             <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:hint="@string/device_id">
                 <com.google.android.material.textfield.TextInputEditText android:id="@+id/deviceIdInput" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="text" />
             </com.google.android.material.textfield.TextInputLayout>
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:text="@string/api_credential" android:textColor="@color/attendance_text_secondary" />
             <TextView android:id="@+id/apiCredentialStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
-            <Button android:id="@+id/saveDeviceIdButton" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="28dp" android:text="@string/save_device_id" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/saveDeviceIdButton" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="28dp" android:text="@string/save_device_id" />
         </LinearLayout>
     </ScrollView>
 </LinearLayout>

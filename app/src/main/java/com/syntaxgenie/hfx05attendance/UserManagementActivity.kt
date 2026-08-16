@@ -23,6 +23,7 @@ import com.syntaxgenie.hfx05attendance.employee.EmployeeRecord
 import com.syntaxgenie.hfx05attendance.employee.EmployeeSyncService
 import com.syntaxgenie.hfx05attendance.employee.local.EmployeeDirectoryDatabase
 import com.syntaxgenie.hfx05attendance.employee.local.LocalEmployeeDirectory
+import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
 
 class UserManagementActivity : AppCompatActivity() {
     private lateinit var rows: LinearLayout
@@ -42,6 +43,7 @@ class UserManagementActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_user_management)
+        KioskWindowInsets.apply(this, findViewById(R.id.userManagementRoot))
         findViewById<MaterialToolbar>(R.id.userManagementToolbar).setNavigationOnClickListener { finish() }
         rows = findViewById(R.id.employeeRows)
         status = findViewById(R.id.userSyncStatus)
