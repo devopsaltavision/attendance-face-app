@@ -105,4 +105,26 @@
     <string name="sync_status_row">Sync Status\nDevice synchronization</string>
     <string name="device_settings_row">Device Settings\nDevice configuration</string>
     <string name="diagnostics_row">Diagnostics\nHF-X05 engineering tools</string>
+    <string name="employee_epf">EPF: %1$s</string>
+    <string name="backend_environment">Backend Environment</string>
+    <string name="api_base_url">API Base URL</string>
+    <string name="device_id">Device ID</string>
+    <string name="api_credential">API Credential</string>
+    <string name="configured">Configured</string>
+    <string name="not_configured">Not configured</string>
+    <string name="save_device_id">SAVE DEVICE ID</string>
+    <string name="device_id_saved">Device ID saved locally</string>
+    <string name="search_users">Search users</string>
+    <string name="sync_users">SYNC USERS</string>
+    <string name="full_refresh">FULL REFRESH</string>
+    <string name="syncing_users">Syncing users…</string>
+    <string name="users_synced">%1$d users synced</string>
+    <string name="users_up_to_date">Users already up to date</string>
+    <string name="no_users_synced">No users synced to this device yet.</string>
+    <string name="employee_inactive">Employee is inactive.</string>
+    <string name="active">Active</string>
+    <string name="inactive">Inactive</string>
+    <string name="fingerprint_enrolled">Backend fingerprint enrolled</string>
+    <string name="fingerprint_not_enrolled">Backend fingerprint not enrolled</string>
+    <string name="employee_row">%1$s\n%2$s\nEPF: %3$s\n\n%4$s · %5$s</string>
 </resources>

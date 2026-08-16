@@ -174,7 +174,8 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
     private fun configureEmployee() {
         val suppliedId = intent.getStringExtra(EXTRA_EMPLOYEE_ID)?.trim().orEmpty()
         val suppliedName = intent.getStringExtra(EXTRA_EMPLOYEE_DISPLAY_NAME)?.trim()?.takeIf(String::isNotEmpty)
-        employeeModel = suppliedId.takeIf(String::isNotEmpty)?.let { RegistrationEmployeeUiModel(it, suppliedName) }
+        val suppliedUserId = intent.getStringExtra(EXTRA_USER_ID)?.trim()?.takeIf(String::isNotEmpty)
+        employeeModel = suppliedId.takeIf(String::isNotEmpty)?.let { RegistrationEmployeeUiModel(it, suppliedName, suppliedUserId) }
         val card = findViewById<View>(R.id.selectedEmployeeCard)
         val manual = findViewById<View>(R.id.manualEmployeeContainer)
         employeeModel?.let { employee ->
@@ -182,6 +183,10 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
             manual.visibility = View.GONE
             findViewById<TextView>(R.id.selectedEmployeeName).text = employee.displayName ?: employee.employeeId
             findViewById<TextView>(R.id.selectedEmployeeId).text = employee.employeeId
+            findViewById<TextView>(R.id.selectedEmployeeUserId).apply {
+                visibility = if (employee.userId == null) View.GONE else View.VISIBLE
+                text = employee.userId?.let { getString(R.string.employee_epf, it) }.orEmpty()
+            }
         } ?: run {
             card.visibility = View.GONE
             manual.visibility = View.VISIBLE
@@ -200,9 +205,11 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_EMPLOYEE_ID = "employeeId"
         const val EXTRA_EMPLOYEE_DISPLAY_NAME = "employeeDisplayName"
+        const val EXTRA_USER_ID = "userId"
 
-        fun createIntent(context: Context, employeeId: String, employeeDisplayName: String): Intent =
+        fun createIntent(context: Context, userId: String, employeeId: String, employeeDisplayName: String): Intent =
             Intent(context, FingerprintRegistrationActivity::class.java).apply {
+                putExtra(EXTRA_USER_ID, userId)
                 putExtra(EXTRA_EMPLOYEE_ID, employeeId)
                 putExtra(EXTRA_EMPLOYEE_DISPLAY_NAME, employeeDisplayName)
             }

@@ -15,11 +15,16 @@ class AdminDashboardActivity : AppCompatActivity() {
         findViewById<Button>(R.id.registrationButton).setOnClickListener {
             startActivity(Intent(this, FingerprintRegistrationActivity::class.java))
         }
+        findViewById<Button>(R.id.userManagementButton).setOnClickListener {
+            startActivity(Intent(this, UserManagementActivity::class.java))
+        }
+        findViewById<Button>(R.id.deviceSettingsButton).setOnClickListener {
+            startActivity(Intent(this, DeviceSettingsActivity::class.java))
+        }
         findViewById<Button>(R.id.diagnosticsButton).setOnClickListener {
             startActivity(Intent(this, DiagnosticsActivity::class.java))
         }
-        listOf(R.id.userManagementButton, R.id.fingerprintManagementButton, R.id.syncStatusButton,
-            R.id.deviceSettingsButton).forEach { id ->
+        listOf(R.id.fingerprintManagementButton, R.id.syncStatusButton).forEach { id ->
             findViewById<Button>(id).setOnClickListener {
                 Toast.makeText(this, R.string.backend_feature_placeholder, Toast.LENGTH_SHORT).show()
             }

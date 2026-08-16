@@ -11,6 +11,7 @@
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp">
                     <TextView android:id="@+id/selectedEmployeeName" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
                     <TextView android:id="@+id/selectedEmployeeId" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textColor="@color/attendance_text_secondary" />
+                    <TextView android:id="@+id/selectedEmployeeUserId" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:textColor="@color/attendance_text_secondary" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
             <LinearLayout android:id="@+id/manualEmployeeContainer" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
