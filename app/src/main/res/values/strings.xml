@@ -45,4 +45,10 @@
     <string name="capture_confirmation">This engineering test powers the HF-X05 fingerprint sensor, initializes it, and attempts to capture one fingerprint image.\n\nNo fingerprint matching or registration is performed.</string>
     <string name="run_capture_test">RUN CAPTURE TEST</string>
     <string name="no_saved_capture">No usable saved capture is available</string>
+    <string name="engineering_enrollment_title">Engineering 5-Scan Enrollment</string>
+    <string name="enrollment_not_started">Enrollment progress: 0 / 5</string>
+    <string name="start_enrollment">START ENROLLMENT</string>
+    <string name="capture_next">CAPTURE NEXT</string>
+    <string name="retry_enrollment_save">RETRY ATOMIC SAVE</string>
+    <string name="cancel_enrollment">CANCEL ENROLLMENT</string>
 </resources>

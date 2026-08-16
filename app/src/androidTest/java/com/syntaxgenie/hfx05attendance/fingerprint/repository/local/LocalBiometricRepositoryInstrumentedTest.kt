@@ -74,6 +74,51 @@ class LocalBiometricRepositoryInstrumentedTest {
     }
 
     @Test
+    fun atomicEnrollmentStoresAllFiveRecords() {
+        val records = (1..5).map { record("batch-$it", "EMP010", FingerPosition.LEFT_THUMB, it) }
+        val result = repository.saveEnrollment(records)
+
+        assertTrue(result is RepositoryResult.Success)
+        assertEquals(5, success(repository.getByEmployeeAndFinger("EMP010", FingerPosition.LEFT_THUMB)).size)
+    }
+
+    @Test
+    fun atomicEnrollmentConflictRollsBackEveryNewRecord() {
+        repository.save(record("occupied", "EMP010", FingerPosition.LEFT_THUMB, 3))
+        val records = (1..5).map { record("conflict-$it", "EMP010", FingerPosition.LEFT_THUMB, it) }
+
+        val result = repository.saveEnrollment(records)
+
+        assertEquals(RepositoryError.DUPLICATE_TEMPLATE_SLOT, (result as RepositoryResult.Error).error)
+        val remaining = success(repository.getByEmployeeAndFinger("EMP010", FingerPosition.LEFT_THUMB))
+        assertEquals(listOf("occupied"), remaining.map { it.recordId })
+    }
+
+    @Test
+    fun atomicEnrollmentConflictLeavesOtherEmployeeUntouched() {
+        repository.save(record("other", "EMP999", FingerPosition.RIGHT_INDEX, 1))
+        repository.save(record("occupied", "EMP010", FingerPosition.LEFT_THUMB, 5))
+        val records = (1..5).map { record("conflict-$it", "EMP010", FingerPosition.LEFT_THUMB, it) }
+
+        repository.saveEnrollment(records)
+
+        assertEquals(listOf("other"), success(repository.getByEmployee("EMP999")).map { it.recordId })
+        assertEquals(listOf("occupied"), success(repository.getByEmployee("EMP010")).map { it.recordId })
+    }
+
+    @Test
+    fun atomicTransactionRollsBackEarlierInsertsWhenLaterPrimaryKeyConflicts() {
+        repository.save(record("conflict-3", "EMP999", FingerPosition.RIGHT_INDEX, 1))
+        val records = (1..5).map { record("conflict-$it", "EMP010", FingerPosition.LEFT_THUMB, it) }
+
+        val result = repository.saveEnrollment(records)
+
+        assertEquals(RepositoryError.TEMPLATE_SAVE_FAILED, (result as RepositoryResult.Error).error)
+        assertTrue(success(repository.getByEmployee("EMP010")).isEmpty())
+        assertEquals(listOf("conflict-3"), success(repository.getByEmployee("EMP999")).map { it.recordId })
+    }
+
+    @Test
     fun incompatibleMetadataIsRejectedOnSaveAndRead() {
         val incompatible = MatcherMetadata("sourceafis", "future", "sourceafis-cbor", 1)
         val saveResult = repository.save(

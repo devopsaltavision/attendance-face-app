@@ -4,12 +4,21 @@ import androidx.room.Dao;
 import androidx.room.Insert;
 import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
+import androidx.room.Transaction;
 import java.util.List;
 
 @Dao
 public interface BiometricTemplateDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     void insert(BiometricTemplateEntity entity);
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    void insertAll(List<BiometricTemplateEntity> entities);
+
+    @Transaction
+    default void insertEnrollment(List<BiometricTemplateEntity> entities) {
+        insertAll(entities);
+    }
 
     @Query("SELECT * FROM biometric_templates WHERE employee_id = :employeeId " +
             "ORDER BY finger_position, template_slot")

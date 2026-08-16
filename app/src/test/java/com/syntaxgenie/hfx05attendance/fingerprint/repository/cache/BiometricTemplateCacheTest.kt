@@ -71,6 +71,7 @@ class BiometricTemplateCacheTest {
             return RepositoryResult.Success(records)
         }
         override fun save(record: BiometricRecord) = RepositoryResult.Success(record)
+        override fun saveEnrollment(records: List<BiometricRecord>) = RepositoryResult.Success(records)
         override fun getByEmployee(employeeId: String) = RepositoryResult.Success(emptyList<BiometricRecord>())
         override fun getByEmployeeAndFinger(employeeId: String, fingerPosition: FingerPosition) =
             RepositoryResult.Success(emptyList<BiometricRecord>())

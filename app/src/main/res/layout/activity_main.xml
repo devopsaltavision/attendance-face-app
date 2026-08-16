@@ -23,6 +23,26 @@
         <ImageView android:id="@+id/capturePreview" android:layout_width="256dp" android:layout_height="360dp"
             android:layout_gravity="center_horizontal" android:layout_marginTop="12dp"
             android:contentDescription="@string/capture_preview" android:scaleType="fitCenter" android:visibility="gone" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="24dp" android:text="@string/engineering_enrollment_title"
+            android:textAppearance="@style/TextAppearance.Material3.TitleLarge" />
+        <EditText android:id="@+id/enrollmentEmployeeId" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="8dp"
+            android:hint="@string/employee_id" android:inputType="text" />
+        <Spinner android:id="@+id/enrollmentFingerPosition" android:layout_width="match_parent"
+            android:layout_height="48dp" android:layout_marginTop="8dp" />
+        <TextView android:id="@+id/enrollmentProgressText" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="8dp"
+            android:text="@string/enrollment_not_started" />
+        <Button android:id="@+id/startEnrollmentButton" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="8dp"
+            android:text="@string/start_enrollment" />
+        <Button android:id="@+id/captureEnrollmentButton" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="8dp"
+            android:enabled="false" android:text="@string/capture_next" />
+        <Button android:id="@+id/cancelEnrollmentButton" style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" android:enabled="false" android:text="@string/cancel_enrollment" />
         <Button android:id="@+id/copyDiagnosticsButton" style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp"
             android:enabled="false" android:text="@string/copy_complete_report" />

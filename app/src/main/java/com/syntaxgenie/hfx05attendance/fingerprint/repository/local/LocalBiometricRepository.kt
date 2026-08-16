@@ -55,6 +55,42 @@ class LocalBiometricRepository(
         }
     }
 
+    override fun saveEnrollment(
+        records: List<BiometricRecord>,
+    ): RepositoryResult<List<BiometricRecord>> = timed("saveEnrollment") {
+        val validationError = validateEnrollment(records)
+        if (validationError != null) return@timed validationError
+        val incompatible = records.firstOrNull { it.template.metadata != activeMatcherMetadata }
+        if (incompatible != null) return@timed incompatible(incompatible.template.metadata)
+
+        try {
+            val occupied = records.firstOrNull {
+                dao.countLogicalSlot(it.employeeId, it.fingerPosition.persistedValue, it.templateSlot) > 0
+            }
+            if (occupied != null) {
+                RepositoryResult.Error(RepositoryError.DUPLICATE_TEMPLATE_SLOT)
+            } else {
+                dao.insertEnrollment(records.map(BiometricRecordMapper::toEntity))
+                RepositoryResult.Success(records.toList())
+            }
+        } catch (error: SQLiteConstraintException) {
+            val occupied = records.any {
+                dao.countLogicalSlot(it.employeeId, it.fingerPosition.persistedValue, it.templateSlot) > 0
+            }
+            if (occupied) {
+                RepositoryResult.Error(
+                    RepositoryError.DUPLICATE_TEMPLATE_SLOT,
+                    diagnosticDetails = "The atomic enrollment transaction encountered an occupied template slot.",
+                    cause = error,
+                )
+            } else {
+                failure(RepositoryError.TEMPLATE_SAVE_FAILED, "A database constraint rejected the enrollment batch.", error)
+            }
+        } catch (error: Exception) {
+            failure(RepositoryError.TEMPLATE_SAVE_FAILED, "Atomic Room enrollment insert failed.", error)
+        }
+    }
+
     override fun getByEmployee(employeeId: String): RepositoryResult<List<BiometricRecord>> =
         read("getByEmployee") { dao.getByEmployee(employeeId) }
 
@@ -78,6 +114,30 @@ class LocalBiometricRepository(
         delete("deleteByEmployee") { dao.deleteByEmployee(employeeId) }
 
     override fun diagnostics(): BiometricRepositorySnapshot = snapshot
+
+    private fun validateEnrollment(records: List<BiometricRecord>): RepositoryResult.Error? {
+        if (records.size != BiometricRecord.VALID_TEMPLATE_SLOTS.count()) {
+            return invalidEnrollment("An enrollment batch must contain exactly five records.")
+        }
+        if (records.map { it.employeeId }.distinct().size != 1) {
+            return invalidEnrollment("An enrollment batch must belong to one employee.")
+        }
+        if (records.map { it.fingerPosition }.distinct().size != 1) {
+            return invalidEnrollment("An enrollment batch must belong to one finger position.")
+        }
+        if (records.map { it.templateSlot }.toSet() != BiometricRecord.VALID_TEMPLATE_SLOTS.toSet()) {
+            return invalidEnrollment("An enrollment batch must contain unique template slots 1 through 5.")
+        }
+        if (records.map { it.recordId }.distinct().size != records.size) {
+            return invalidEnrollment("An enrollment batch must contain unique record IDs.")
+        }
+        return null
+    }
+
+    private fun invalidEnrollment(details: String) = RepositoryResult.Error(
+        RepositoryError.INVALID_RECORD,
+        diagnosticDetails = details,
+    )
 
     private fun read(
         operation: String,

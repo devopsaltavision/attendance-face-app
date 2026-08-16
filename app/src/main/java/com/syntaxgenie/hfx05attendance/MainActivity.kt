@@ -7,7 +7,10 @@ import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
 import android.widget.Button
+import android.widget.ArrayAdapter
+import android.widget.EditText
 import android.widget.ImageView
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -15,6 +18,16 @@ import androidx.appcompat.app.AppCompatActivity
 import com.syntaxgenie.hfx05attendance.fingerprint.LowLevelAccessProbe
 import com.syntaxgenie.hfx05attendance.fingerprint.RawCaptureStorage
 import com.syntaxgenie.hfx05attendance.fingerprint.X05HardwareProbe
+import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentLowerLayerError
+import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentProgress
+import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentRequest
+import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentResult
+import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentState
+import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.FingerprintEnrollmentService
+import com.syntaxgenie.hfx05attendance.fingerprint.matcher.sourceafis.SourceAfisFingerprintMatcher
+import com.syntaxgenie.hfx05attendance.fingerprint.repository.FingerPosition
+import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.BiometricDatabase
+import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.LocalBiometricRepository
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.FingerprintImage
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.ScannerProgress
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.ScannerResult
@@ -35,9 +48,25 @@ class MainActivity : AppCompatActivity() {
     private lateinit var scannerLayerCaptureButton: Button
     private lateinit var viewCaptureButton: Button
     private lateinit var capturePreview: ImageView
+    private lateinit var enrollmentEmployeeId: EditText
+    private lateinit var enrollmentFingerPosition: Spinner
+    private lateinit var enrollmentProgressText: TextView
+    private lateinit var startEnrollmentButton: Button
+    private lateinit var captureEnrollmentButton: Button
+    private lateinit var cancelEnrollmentButton: Button
     private var report = "No diagnostic report has been collected yet."
     private var running = false
     private val fingerprintScanner by lazy { Hfx05FingerprintScanner() }
+    private val fingerprintMatcher by lazy { SourceAfisFingerprintMatcher() }
+    private val biometricDatabaseDelegate = lazy { BiometricDatabase.create(applicationContext) }
+    private val biometricDatabase by biometricDatabaseDelegate
+    private val biometricRepository by lazy {
+        LocalBiometricRepository(biometricDatabase.biometricTemplateDao(), fingerprintMatcher.metadata)
+    }
+    private val enrollmentServiceDelegate = lazy {
+        FingerprintEnrollmentService(fingerprintScanner, fingerprintMatcher, biometricRepository)
+    }
+    private val enrollmentService by enrollmentServiceDelegate
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,6 +80,17 @@ class MainActivity : AppCompatActivity() {
         scannerLayerCaptureButton = findViewById(R.id.scannerLayerCaptureButton)
         viewCaptureButton = findViewById(R.id.viewLastCaptureButton)
         capturePreview = findViewById(R.id.capturePreview)
+        enrollmentEmployeeId = findViewById(R.id.enrollmentEmployeeId)
+        enrollmentFingerPosition = findViewById(R.id.enrollmentFingerPosition)
+        enrollmentProgressText = findViewById(R.id.enrollmentProgressText)
+        startEnrollmentButton = findViewById(R.id.startEnrollmentButton)
+        captureEnrollmentButton = findViewById(R.id.captureEnrollmentButton)
+        cancelEnrollmentButton = findViewById(R.id.cancelEnrollmentButton)
+        enrollmentFingerPosition.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            FingerPosition.entries.map(FingerPosition::name),
+        )
 
         val saved = File(filesDir, REPORT_FILE).takeIf(File::isFile)?.readText()
         if (saved != null) {
@@ -65,6 +105,9 @@ class MainActivity : AppCompatActivity() {
         captureButton.setOnClickListener { confirmCaptureTest() }
         scannerLayerCaptureButton.setOnClickListener { confirmScannerLayerCapture() }
         viewCaptureButton.setOnClickListener { showLastCapture() }
+        startEnrollmentButton.setOnClickListener { startEnrollment() }
+        captureEnrollmentButton.setOnClickListener { captureEnrollmentNext() }
+        cancelEnrollmentButton.setOnClickListener { cancelEnrollment() }
         viewCaptureButton.isEnabled = captureRawFile().length() == CAPTURE_BYTES.toLong()
     }
 
@@ -156,6 +199,124 @@ class MainActivity : AppCompatActivity() {
         activeButton.isEnabled = !value
         captureButton.isEnabled = !value
         scannerLayerCaptureButton.isEnabled = !value
+        refreshEnrollmentControls()
+    }
+
+    private fun startEnrollment() {
+        if (running) return
+        val employeeId = enrollmentEmployeeId.text.toString().trim()
+        if (employeeId.isBlank()) {
+            enrollmentEmployeeId.error = getString(R.string.employee_id_required)
+            return
+        }
+        val finger = FingerPosition.entries[enrollmentFingerPosition.selectedItemPosition]
+        setRunning(true)
+        Thread {
+            val result = enrollmentService.start(EnrollmentRequest(employeeId, finger))
+            runOnUiThread {
+                renderEnrollmentResult(result)
+                setRunning(false)
+            }
+        }.apply { name = "fingerprint-enrollment-start" }.start()
+    }
+
+    private fun captureEnrollmentNext() {
+        if (running) return
+        setRunning(true)
+        Thread {
+            val result = if (enrollmentService.currentSession()?.state == EnrollmentState.FAILED) {
+                enrollmentService.retrySave()
+            } else {
+                enrollmentService.captureNext { progress ->
+                    runOnUiThread { enrollmentProgressText.text = enrollmentProgressMessage(progress) }
+                }
+            }
+            runOnUiThread {
+                renderEnrollmentResult(result)
+                setRunning(false)
+            }
+        }.apply { name = "fingerprint-enrollment-step" }.start()
+    }
+
+    private fun cancelEnrollment() {
+        if (running) return
+        renderEnrollmentResult(enrollmentService.cancel())
+        refreshEnrollmentControls()
+    }
+
+    private fun renderEnrollmentResult(result: EnrollmentResult<*>) {
+        when (result) {
+            is EnrollmentResult.Success -> {
+                val session = enrollmentService.currentSession()
+                enrollmentProgressText.text = when (session?.state) {
+                    EnrollmentState.COMPLETED -> buildString {
+                        appendLine("Enrollment complete")
+                        appendLine("Employee: ${session.employeeId}")
+                        appendLine("Finger: ${session.fingerPosition.name}")
+                        append("Templates stored: ${session.completedCaptures}")
+                    }
+                    EnrollmentState.CANCELLED -> "Enrollment cancelled. No templates stored."
+                    else -> "Enrollment progress: ${session?.completedCaptures ?: 0} / 5"
+                }
+            }
+            is EnrollmentResult.Error -> {
+                val lower = formatEnrollmentLowerError(result.lowerLayerError)
+                enrollmentProgressText.text = buildString {
+                    appendLine("${result.error.userMessage}")
+                    append("Error code: ${result.error.code}")
+                    if (lower != null) append("\n$lower")
+                }
+                appendCaptureReport(buildString {
+                    appendLine("=== ENGINEERING ENROLLMENT ===")
+                    appendLine("error: ${result.error.code} ${result.error.name}")
+                    appendLine("employee: ${result.session?.employeeId ?: "not started"}")
+                    appendLine("finger: ${result.session?.fingerPosition?.name ?: "not selected"}")
+                    appendLine("progress: ${result.session?.completedCaptures ?: 0} / 5")
+                    lower?.let { appendLine("lower layer: $it") }
+                    result.diagnosticDetails?.let { appendLine("technical details: $it") }
+                })
+                reportText.text = report
+                copyButton.isEnabled = true
+            }
+        }
+        refreshEnrollmentControls()
+    }
+
+    private fun formatEnrollmentLowerError(error: EnrollmentLowerLayerError?): String? = when (error) {
+        is EnrollmentLowerLayerError.Scanner ->
+            "Scanner: ${error.value.error.code} ${error.value.error.userMessage}"
+        is EnrollmentLowerLayerError.Matcher ->
+            "Matcher: ${error.value.error.code} ${error.value.error.userMessage}"
+        is EnrollmentLowerLayerError.Repository ->
+            "Repository: ${error.value.error.code} ${error.value.error.userMessage}"
+        null -> null
+    }
+
+    private fun enrollmentProgressMessage(progress: EnrollmentProgress): String = when (progress.state) {
+        EnrollmentState.CAPTURING ->
+            "Capture ${progress.captureNumber} of ${progress.requiredCaptures}: ${progress.scannerProgress?.let(::scannerProgressMessage) ?: "starting..."}"
+        EnrollmentState.PROCESSING ->
+            "Processing capture ${progress.captureNumber} of ${progress.requiredCaptures}..."
+        EnrollmentState.SAVING -> "Saving all five templates atomically..."
+        else -> "Enrollment progress: ${progress.completedCaptures} / ${progress.requiredCaptures}"
+    }
+
+    private fun refreshEnrollmentControls() {
+        if (!::startEnrollmentButton.isInitialized) return
+        val state = if (enrollmentServiceDelegate.isInitialized()) enrollmentService.currentSession()?.state else null
+        startEnrollmentButton.isEnabled = !running && state !in setOf(
+            EnrollmentState.READY,
+            EnrollmentState.CAPTURING,
+            EnrollmentState.PROCESSING,
+            EnrollmentState.SAVING,
+        )
+        captureEnrollmentButton.isEnabled = !running && state in setOf(EnrollmentState.READY, EnrollmentState.FAILED)
+        captureEnrollmentButton.setText(
+            if (state == EnrollmentState.FAILED) R.string.retry_enrollment_save else R.string.capture_next,
+        )
+        cancelEnrollmentButton.isEnabled = !running && state in setOf(EnrollmentState.READY, EnrollmentState.FAILED)
+        enrollmentEmployeeId.isEnabled = startEnrollmentButton.isEnabled
+        enrollmentFingerPosition.isEnabled = startEnrollmentButton.isEnabled
     }
 
     private fun confirmCaptureTest() {
