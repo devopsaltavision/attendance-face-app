@@ -11,6 +11,8 @@ import androidx.room.PrimaryKey;
         indices = {
                 @Index(value = {"employee_id"}),
                 @Index(value = {"employee_id", "finger_position"}),
+                @Index(value = {"enrollment_id"}),
+                @Index(value = {"enrollment_id", "template_slot"}, unique = true),
                 @Index(
                         value = {"employee_id", "finger_position", "template_slot"},
                         unique = true
@@ -22,6 +24,9 @@ public final class BiometricTemplateEntity {
     @NonNull
     @ColumnInfo(name = "id")
     public final String id;
+    @NonNull
+    @ColumnInfo(name = "enrollment_id")
+    public final String enrollmentId;
     @NonNull
     @ColumnInfo(name = "employee_id")
     public final String employeeId;
@@ -51,6 +56,7 @@ public final class BiometricTemplateEntity {
 
     public BiometricTemplateEntity(
             @NonNull String id,
+            @NonNull String enrollmentId,
             @NonNull String employeeId,
             @NonNull String fingerPosition,
             int templateSlot,
@@ -63,6 +69,7 @@ public final class BiometricTemplateEntity {
             long updatedAtEpochMillis
     ) {
         this.id = id;
+        this.enrollmentId = enrollmentId;
         this.employeeId = employeeId;
         this.fingerPosition = fingerPosition;
         this.templateSlot = templateSlot;

@@ -251,6 +251,7 @@ class MainActivity : AppCompatActivity() {
                 enrollmentProgressText.text = when (session?.state) {
                     EnrollmentState.COMPLETED -> buildString {
                         appendLine("Enrollment complete")
+                        appendLine("Enrollment ID: ${session.enrollmentId}")
                         appendLine("Employee: ${session.employeeId}")
                         appendLine("Finger: ${session.fingerPosition.name}")
                         append("Templates stored: ${session.completedCaptures}")
@@ -269,6 +270,7 @@ class MainActivity : AppCompatActivity() {
                 appendCaptureReport(buildString {
                     appendLine("=== ENGINEERING ENROLLMENT ===")
                     appendLine("error: ${result.error.code} ${result.error.name}")
+                    appendLine("enrollment ID: ${result.session?.enrollmentId ?: "not started"}")
                     appendLine("employee: ${result.session?.employeeId ?: "not started"}")
                     appendLine("finger: ${result.session?.fingerPosition?.name ?: "not selected"}")
                     appendLine("progress: ${result.session?.completedCaptures ?: 0} / 5")

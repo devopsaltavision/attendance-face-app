@@ -1,0 +1,148 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "6f1b1f6e8a32f4853d84ecb0ab348a59",
+    "entities": [
+      {
+        "tableName": "biometric_templates",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `enrollment_id` TEXT NOT NULL, `employee_id` TEXT NOT NULL, `finger_position` TEXT NOT NULL, `template_slot` INTEGER NOT NULL, `matcher_engine` TEXT NOT NULL, `matcher_implementation_version` TEXT NOT NULL, `template_format` TEXT NOT NULL, `template_format_version` INTEGER NOT NULL, `template_bytes` BLOB NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enrollmentId",
+            "columnName": "enrollment_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "employeeId",
+            "columnName": "employee_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fingerPosition",
+            "columnName": "finger_position",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "templateSlot",
+            "columnName": "template_slot",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "matcherEngine",
+            "columnName": "matcher_engine",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "matcherImplementationVersion",
+            "columnName": "matcher_implementation_version",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "templateFormat",
+            "columnName": "template_format",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "templateFormatVersion",
+            "columnName": "template_format_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "templateBytes",
+            "columnName": "template_bytes",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_biometric_templates_employee_id",
+            "unique": false,
+            "columnNames": [
+              "employee_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_biometric_templates_employee_id` ON `${TABLE_NAME}` (`employee_id`)"
+          },
+          {
+            "name": "index_biometric_templates_employee_id_finger_position",
+            "unique": false,
+            "columnNames": [
+              "employee_id",
+              "finger_position"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_biometric_templates_employee_id_finger_position` ON `${TABLE_NAME}` (`employee_id`, `finger_position`)"
+          },
+          {
+            "name": "index_biometric_templates_enrollment_id",
+            "unique": false,
+            "columnNames": [
+              "enrollment_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_biometric_templates_enrollment_id` ON `${TABLE_NAME}` (`enrollment_id`)"
+          },
+          {
+            "name": "index_biometric_templates_enrollment_id_template_slot",
+            "unique": true,
+            "columnNames": [
+              "enrollment_id",
+              "template_slot"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_biometric_templates_enrollment_id_template_slot` ON `${TABLE_NAME}` (`enrollment_id`, `template_slot`)"
+          },
+          {
+            "name": "index_biometric_templates_employee_id_finger_position_template_slot",
+            "unique": true,
+            "columnNames": [
+              "employee_id",
+              "finger_position",
+              "template_slot"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_biometric_templates_employee_id_finger_position_template_slot` ON `${TABLE_NAME}` (`employee_id`, `finger_position`, `template_slot`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6f1b1f6e8a32f4853d84ecb0ab348a59')"
+    ]
+  }
+}

@@ -4,6 +4,7 @@ import com.syntaxgenie.hfx05attendance.fingerprint.matcher.FingerprintTemplate
 
 data class BiometricRecord(
     val recordId: String,
+    val enrollmentId: String,
     val employeeId: String,
     val fingerPosition: FingerPosition,
     val templateSlot: Int,
@@ -13,6 +14,7 @@ data class BiometricRecord(
 ) {
     init {
         require(recordId.isNotBlank()) { "Biometric record ID must not be blank" }
+        require(enrollmentId.isNotBlank()) { "Biometric enrollment ID must not be blank" }
         require(employeeId.isNotBlank()) { "Employee ID must not be blank" }
         require(templateSlot in VALID_TEMPLATE_SLOTS) { "Template slot must be between 1 and 5" }
         require(createdAtEpochMillis > 0) { "Created timestamp must be positive" }

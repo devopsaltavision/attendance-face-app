@@ -12,6 +12,8 @@ interface BiometricRepository {
         fingerPosition: FingerPosition,
     ): RepositoryResult<List<BiometricRecord>>
 
+    fun getByEnrollmentId(enrollmentId: String): RepositoryResult<List<BiometricRecord>>
+
     fun getAll(): RepositoryResult<List<BiometricRecord>>
 
     fun deleteByEmployeeAndFinger(

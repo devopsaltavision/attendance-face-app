@@ -16,7 +16,8 @@ class FingerprintEnrollmentService(
     private val matcher: FingerprintMatcher,
     private val repository: BiometricRepository,
     private val currentTimeMillis: () -> Long = System::currentTimeMillis,
-    private val recordId: () -> String = { UUID.randomUUID().toString() },
+    private val newEnrollmentId: () -> String = { UUID.randomUUID().toString() },
+    private val newRecordId: () -> String = { UUID.randomUUID().toString() },
 ) {
     private val lock = Any()
     private var session: EnrollmentSession? = null
@@ -41,6 +42,7 @@ class FingerprintEnrollmentService(
             } else {
                 stagedTemplates.clear()
                 EnrollmentSession(
+                    enrollmentId = newEnrollmentId(),
                     employeeId = request.employeeId,
                     fingerPosition = request.fingerPosition,
                     requiredCaptures = REQUIRED_CAPTURES,
@@ -180,7 +182,8 @@ class FingerprintEnrollmentService(
         val now = currentTimeMillis().coerceAtLeast(1)
         val records = templates.mapIndexed { index, template ->
             BiometricRecord(
-                recordId = recordId(),
+                recordId = newRecordId(),
+                enrollmentId = current.enrollmentId,
                 employeeId = current.employeeId,
                 fingerPosition = current.fingerPosition,
                 templateSlot = index + 1,

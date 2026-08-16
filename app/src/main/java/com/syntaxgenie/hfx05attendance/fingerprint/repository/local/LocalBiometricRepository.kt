@@ -101,6 +101,9 @@ class LocalBiometricRepository(
         dao.getByEmployeeAndFinger(employeeId, fingerPosition.persistedValue)
     }
 
+    override fun getByEnrollmentId(enrollmentId: String): RepositoryResult<List<BiometricRecord>> =
+        read("getByEnrollmentId") { dao.getByEnrollmentId(enrollmentId) }
+
     override fun getAll(): RepositoryResult<List<BiometricRecord>> = read("getAll", dao::getAll)
 
     override fun deleteByEmployeeAndFinger(
@@ -130,6 +133,9 @@ class LocalBiometricRepository(
         }
         if (records.map { it.recordId }.distinct().size != records.size) {
             return invalidEnrollment("An enrollment batch must contain unique record IDs.")
+        }
+        if (records.map { it.enrollmentId }.distinct().size != 1) {
+            return invalidEnrollment("An enrollment batch must share exactly one enrollment ID.")
         }
         return null
     }

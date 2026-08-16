@@ -49,6 +49,7 @@ class BiometricTemplateCacheTest {
         assertEquals(750, snapshot.recordCount)
         assertEquals(1, repository.getAllCalls)
         assertEquals(750, snapshot.records.map { it.recordId }.toSet().size)
+        assertEquals(150, snapshot.records.map { it.enrollmentId }.toSet().size)
         assertEquals(150, snapshot.records.map { it.employeeId }.toSet().size)
         assertTrue(snapshot.records.all { it.fingerPosition == FingerPosition.RIGHT_INDEX })
         assertEquals(250L, snapshot.lastReloadDurationNanos)
@@ -57,6 +58,7 @@ class BiometricTemplateCacheTest {
 
     private fun record(employee: Int, slot: Int) = BiometricRecord(
         recordId = "record-$employee-$slot",
+        enrollmentId = "enrollment-$employee",
         employeeId = "EMP%03d".format(employee),
         fingerPosition = FingerPosition.RIGHT_INDEX,
         templateSlot = slot,
@@ -74,6 +76,8 @@ class BiometricTemplateCacheTest {
         override fun saveEnrollment(records: List<BiometricRecord>) = RepositoryResult.Success(records)
         override fun getByEmployee(employeeId: String) = RepositoryResult.Success(emptyList<BiometricRecord>())
         override fun getByEmployeeAndFinger(employeeId: String, fingerPosition: FingerPosition) =
+            RepositoryResult.Success(emptyList<BiometricRecord>())
+        override fun getByEnrollmentId(enrollmentId: String) =
             RepositoryResult.Success(emptyList<BiometricRecord>())
         override fun deleteByEmployeeAndFinger(employeeId: String, fingerPosition: FingerPosition) =
             RepositoryResult.Success(0)

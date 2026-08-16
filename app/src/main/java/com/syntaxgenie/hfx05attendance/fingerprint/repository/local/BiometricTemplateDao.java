@@ -28,6 +28,9 @@ public interface BiometricTemplateDao {
             "AND finger_position = :fingerPosition ORDER BY template_slot")
     List<BiometricTemplateEntity> getByEmployeeAndFinger(String employeeId, String fingerPosition);
 
+    @Query("SELECT * FROM biometric_templates WHERE enrollment_id = :enrollmentId ORDER BY template_slot")
+    List<BiometricTemplateEntity> getByEnrollmentId(String enrollmentId);
+
     @Query("SELECT * FROM biometric_templates ORDER BY employee_id, finger_position, template_slot")
     List<BiometricTemplateEntity> getAll();
 

@@ -10,6 +10,7 @@ internal object BiometricRecordMapper {
         val metadata = record.template.metadata
         return BiometricTemplateEntity(
             record.recordId,
+            record.enrollmentId,
             record.employeeId,
             record.fingerPosition.persistedValue,
             record.templateSlot,
@@ -36,6 +37,7 @@ internal object BiometricRecordMapper {
         }
         return BiometricRecord(
             recordId = entity.id,
+            enrollmentId = entity.enrollmentId,
             employeeId = entity.employeeId,
             fingerPosition = fingerPosition,
             templateSlot = entity.templateSlot,

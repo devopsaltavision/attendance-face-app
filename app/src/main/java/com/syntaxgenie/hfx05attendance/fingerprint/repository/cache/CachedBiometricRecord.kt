@@ -6,6 +6,7 @@ import com.syntaxgenie.hfx05attendance.fingerprint.repository.FingerPosition
 
 data class CachedBiometricRecord(
     val recordId: String,
+    val enrollmentId: String,
     val employeeId: String,
     val fingerPosition: FingerPosition,
     val templateSlot: Int,
@@ -14,6 +15,7 @@ data class CachedBiometricRecord(
     companion object {
         fun from(record: BiometricRecord) = CachedBiometricRecord(
             record.recordId,
+            record.enrollmentId,
             record.employeeId,
             record.fingerPosition,
             record.templateSlot,

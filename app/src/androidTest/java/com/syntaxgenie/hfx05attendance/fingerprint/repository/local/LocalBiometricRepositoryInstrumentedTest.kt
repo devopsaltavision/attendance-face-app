@@ -79,7 +79,30 @@ class LocalBiometricRepositoryInstrumentedTest {
         val result = repository.saveEnrollment(records)
 
         assertTrue(result is RepositoryResult.Success)
-        assertEquals(5, success(repository.getByEmployeeAndFinger("EMP010", FingerPosition.LEFT_THUMB)).size)
+        val stored = success(repository.getByEmployeeAndFinger("EMP010", FingerPosition.LEFT_THUMB))
+        assertEquals(5, stored.size)
+        assertEquals(1, stored.map { it.enrollmentId }.distinct().size)
+        val byEnrollment = success(repository.getByEnrollmentId(stored.first().enrollmentId))
+        assertEquals(stored.map { it.recordId }, byEnrollment.map { it.recordId })
+        assertEquals(stored.map { it.enrollmentId }, byEnrollment.map { it.enrollmentId })
+        stored.zip(byEnrollment).forEach { (expected, actual) ->
+            assertEquals(expected.template.metadata, actual.template.metadata)
+            assertArrayEquals(expected.template.bytes(), actual.template.bytes())
+        }
+    }
+
+    @Test
+    fun mixedEnrollmentIdsAreRejectedBeforeAnyInsert() {
+        val records = (1..5).map {
+            record("mixed-$it", "EMP010", FingerPosition.LEFT_THUMB, it).copy(
+                enrollmentId = if (it == 5) "different-enrollment" else "shared-enrollment",
+            )
+        }
+
+        val result = repository.saveEnrollment(records)
+
+        assertEquals(RepositoryError.INVALID_RECORD, (result as RepositoryResult.Error).error)
+        assertTrue(success(repository.getByEmployee("EMP010")).isEmpty())
     }
 
     @Test
@@ -123,7 +146,7 @@ class LocalBiometricRepositoryInstrumentedTest {
         val incompatible = MatcherMetadata("sourceafis", "future", "sourceafis-cbor", 1)
         val saveResult = repository.save(
             BiometricRecord(
-                "bad", "EMP001", FingerPosition.RIGHT_INDEX, 1,
+                "bad", "bad-enrollment", "EMP001", FingerPosition.RIGHT_INDEX, 1,
                 FingerprintTemplate(incompatible, byteArrayOf(1)), 1,
             ),
         )
@@ -131,7 +154,7 @@ class LocalBiometricRepositoryInstrumentedTest {
 
         database.biometricTemplateDao().insert(
             BiometricTemplateEntity(
-                "stored-bad", "EMP001", "right_index", 1,
+                "stored-bad", "bad-enrollment", "EMP001", "right_index", 1,
                 "sourceafis", "future", "sourceafis-cbor", 1,
                 byteArrayOf(1), 1, 1,
             ),
@@ -183,7 +206,7 @@ class LocalBiometricRepositoryInstrumentedTest {
         position: FingerPosition,
         slot: Int,
     ) = BiometricRecord(
-        id, employeeId, position, slot,
+        id, "enrollment-$employeeId-${position.persistedValue}", employeeId, position, slot,
         FingerprintTemplate(metadata, byteArrayOf(id.hashCode().toByte(), slot.toByte())),
         createdAtEpochMillis = 1,
     )

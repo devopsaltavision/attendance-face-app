@@ -51,6 +51,7 @@ class FingerprintEnrollmentServiceTest {
         assertEquals(5, scanner.captureCalls)
         assertEquals(5, matcher.createCalls)
         assertEquals(1, repository.batchCalls)
+        assertEquals(setOf("enrollment-001"), repository.saved.map { it.enrollmentId }.toSet())
         assertEquals(listOf(1, 2, 3, 4, 5), repository.saved.map { it.templateSlot })
         assertTrue(repository.saved.all { it.employeeId == "EMP001" })
         assertTrue(repository.saved.all { it.fingerPosition == FingerPosition.RIGHT_INDEX })
@@ -59,6 +60,32 @@ class FingerprintEnrollmentServiceTest {
             assertNotSame(first.template, second.template)
         }
         assertError(EnrollmentError.ENROLLMENT_ALREADY_COMPLETE, service.captureNext())
+    }
+
+    @Test
+    fun enrollmentIdIsGeneratedOnceAndRemainsStableThroughAllCaptures() {
+        var enrollmentIdCalls = 0
+        var recordIdCalls = 0
+        val repository = FakeRepository()
+        val service = FingerprintEnrollmentService(
+            scanner = FakeScanner(MutableList(5) { ScannerResult.Success(usableImage()) }),
+            matcher = FakeMatcher(metadata),
+            repository = repository,
+            currentTimeMillis = { 100L },
+            newEnrollmentId = { "enrollment-${++enrollmentIdCalls}" },
+            newRecordId = { "record-${++recordIdCalls}" },
+        )
+
+        val started = success(service.start(request()))
+        assertEquals("enrollment-1", started.enrollmentId)
+        repeat(5) {
+            assertEquals("enrollment-1", success(service.captureNext()).enrollmentId)
+        }
+
+        assertEquals(1, enrollmentIdCalls)
+        assertEquals(5, recordIdCalls)
+        assertEquals(setOf("enrollment-1"), repository.saved.map { it.enrollmentId }.toSet())
+        assertEquals(5, repository.saved.map { it.recordId }.toSet().size)
     }
 
     @Test
@@ -162,6 +189,7 @@ class FingerprintEnrollmentServiceTest {
         assertEquals(EnrollmentState.COMPLETED, completed.state)
         assertEquals(2, repository.batchCalls)
         assertEquals(5, repository.saved.size)
+        assertEquals(listOf("enrollment-001", "enrollment-001"), repository.attemptedEnrollmentIds)
     }
 
     @Test
@@ -226,7 +254,14 @@ class FingerprintEnrollmentServiceTest {
         repository: BiometricRepository,
     ): FingerprintEnrollmentService {
         var id = 0
-        return FingerprintEnrollmentService(scanner, matcher, repository, { 100L }, { "record-${++id}" })
+        return FingerprintEnrollmentService(
+            scanner,
+            matcher,
+            repository,
+            { 100L },
+            { "enrollment-001" },
+            { "record-${++id}" },
+        )
     }
 
     private fun request(employee: String = "EMP001") =
@@ -241,7 +276,8 @@ class FingerprintEnrollmentServiceTest {
     )
 
     private fun record(id: String, employee: String, slot: Int, bytes: ByteArray) = BiometricRecord(
-        id, employee, FingerPosition.RIGHT_INDEX, slot, FingerprintTemplate(metadata, bytes), 1,
+        id, "existing-enrollment", employee, FingerPosition.RIGHT_INDEX, slot,
+        FingerprintTemplate(metadata, bytes), 1,
     )
 
     private fun success(result: EnrollmentResult<EnrollmentSession>): EnrollmentSession =
@@ -288,11 +324,13 @@ class FingerprintEnrollmentServiceTest {
         val existing = mutableListOf<BiometricRecord>()
         val saved = mutableListOf<BiometricRecord>()
         var batchCalls = 0
+        val attemptedEnrollmentIds = mutableListOf<String>()
         var nextBatchResult: RepositoryResult.Error? = null
         override fun save(record: BiometricRecord): RepositoryResult<BiometricRecord> =
             RepositoryResult.Success(record.also(saved::add))
         override fun saveEnrollment(records: List<BiometricRecord>): RepositoryResult<List<BiometricRecord>> {
             batchCalls++
+            attemptedEnrollmentIds += records.map { it.enrollmentId }.distinct().single()
             nextBatchResult?.let { return it }
             saved += records
             return RepositoryResult.Success(records)
@@ -301,6 +339,8 @@ class FingerprintEnrollmentServiceTest {
             RepositoryResult.Success(existing.filter { it.employeeId == employeeId })
         override fun getByEmployeeAndFinger(employeeId: String, fingerPosition: FingerPosition) =
             RepositoryResult.Success(existing.filter { it.employeeId == employeeId && it.fingerPosition == fingerPosition })
+        override fun getByEnrollmentId(enrollmentId: String) =
+            RepositoryResult.Success((existing + saved).filter { it.enrollmentId == enrollmentId })
         override fun getAll() = RepositoryResult.Success(existing + saved)
         override fun deleteByEmployeeAndFinger(employeeId: String, fingerPosition: FingerPosition) = RepositoryResult.Success(0)
         override fun deleteByEmployee(employeeId: String) = RepositoryResult.Success(0)
