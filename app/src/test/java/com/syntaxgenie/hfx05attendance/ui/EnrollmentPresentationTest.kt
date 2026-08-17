@@ -3,7 +3,6 @@ package com.syntaxgenie.hfx05attendance.ui
 import com.syntaxgenie.hfx05attendance.R
 import com.syntaxgenie.hfx05attendance.fingerprint.repository.FingerPosition
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -53,10 +52,36 @@ class EnrollmentPresentationTest {
     }
 
     @Test fun selectedEmployeeModelKeepsDisplayIdentity() {
-        val selected = RegistrationEmployeeUiModel("EMP001", "Madhawa Welikumbura")
+        val selected = RegistrationEmployeeUiModel("EMP001", "Madhawa Welikumbura", "EPF001")
         assertEquals("EMP001", selected.employeeId)
         assertEquals("Madhawa Welikumbura", selected.displayName)
-        assertTrue(selected.isPreselected)
-        assertFalse(RegistrationEmployeeUiModel("EMP002", null).isPreselected)
+        assertEquals("EPF001", selected.userId)
+    }
+
+    @Test fun incompleteEmployeeIntentIdentityIsRejected() {
+        assertEquals(null, RegistrationEmployeeUiModel.from(null, "Name", "EPF001"))
+        assertEquals(null, RegistrationEmployeeUiModel.from("EMP001", " ", "EPF001"))
+        assertEquals(null, RegistrationEmployeeUiModel.from("EMP001", "Name", null))
+    }
+
+    @Test fun completeEmployeeIntentIdentityIsTrimmedAndAccepted() {
+        assertEquals(
+            RegistrationEmployeeUiModel("EMP001", "John Silva", "EPF001"),
+            RegistrationEmployeeUiModel.from(" EMP001 ", " John Silva ", " EPF001 "),
+        )
+    }
+
+    @Test fun fingerDropdownDefaultsToRightIndexAndMapsSelection() {
+        assertEquals(FingerPosition.RIGHT_INDEX, FingerDropdownOptions.default)
+        assertEquals(FingerPosition.LEFT_MIDDLE, FingerDropdownOptions.positionAt(2))
+    }
+
+    @Test fun fingerDropdownContainsAllTenFingersExactlyOnceInDisplayOrder() {
+        val options = FingerDropdownOptions.positions
+        assertEquals(10, options.size)
+        assertEquals(10, options.toSet().size)
+        assertEquals(FingerPosition.entries.toSet(), options.toSet())
+        assertEquals(FingerPosition.LEFT_THUMB, options.first())
+        assertEquals(FingerPosition.RIGHT_LITTLE, options.last())
     }
 }

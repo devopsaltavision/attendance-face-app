@@ -75,7 +75,11 @@
     <string name="device_settings">Device Settings</string>
     <string name="logout">Logout</string>
     <string name="backend_feature_placeholder">Coming in the backend integration milestone</string>
-    <string name="employee_selector_future">Manual ID entry until the employee directory is available.</string>
+    <string name="no_employee_selected">No employee selected</string>
+    <string name="select_employee_before_registration">Select an employee from User Management before starting fingerprint registration.</string>
+    <string name="back_to_user_management">BACK TO USER MANAGEMENT</string>
+    <string name="debug_preview_registration">DEBUG — PREVIEW REGISTRATION UI</string>
+    <string name="debug_preview_identity">DEBUG PREVIEW — enrollment saving is disabled</string>
     <string name="capture_zero_of_five">Capture 0 of 5</string>
     <string name="capture_progress">Capture %1$d of %2$d</string>
     <string name="capturing_progress">Capturing %1$d of %2$d…</string>
@@ -89,12 +93,12 @@
     <string name="done">DONE</string>
     <string name="capture_guidance_first">Place your finger naturally on the sensor.</string>
     <string name="capture_guidance_repeat">Lift and place your finger again with a slightly different position.</string>
-    <string name="finger_right_thumb">Right Thumb</string>
+    <string name="finger_right_thumb">Right Thumb Finger</string>
     <string name="finger_right_index">Right Index Finger</string>
     <string name="finger_right_middle">Right Middle Finger</string>
     <string name="finger_right_ring">Right Ring Finger</string>
     <string name="finger_right_little">Right Little Finger</string>
-    <string name="finger_left_thumb">Left Thumb</string>
+    <string name="finger_left_thumb">Left Thumb Finger</string>
     <string name="finger_left_index">Left Index Finger</string>
     <string name="finger_left_middle">Left Middle Finger</string>
     <string name="finger_left_ring">Left Ring Finger</string>

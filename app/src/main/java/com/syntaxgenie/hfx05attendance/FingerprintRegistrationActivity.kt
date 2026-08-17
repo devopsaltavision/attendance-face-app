@@ -6,7 +6,6 @@ import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.widget.ArrayAdapter
 import android.widget.Button
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.view.View
@@ -20,18 +19,16 @@ import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentResult
 import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentState
 import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.FingerprintEnrollmentService
 import com.syntaxgenie.hfx05attendance.fingerprint.matcher.sourceafis.SourceAfisFingerprintMatcher
-import com.syntaxgenie.hfx05attendance.fingerprint.repository.FingerPosition
 import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.BiometricDatabase
 import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.LocalBiometricRepository
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.hfx05.Hfx05FingerprintScanner
 import com.syntaxgenie.hfx05attendance.ui.FingerprintVisualView
+import com.syntaxgenie.hfx05attendance.ui.FingerDropdownOptions
 import com.syntaxgenie.hfx05attendance.ui.RegistrationEmployeeUiModel
 import com.syntaxgenie.hfx05attendance.ui.displayName
 import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
 
 class FingerprintRegistrationActivity : AppCompatActivity() {
-    private lateinit var employeeId: EditText
-    private lateinit var finger: MaterialAutoCompleteTextView
     private lateinit var visual: FingerprintVisualView
     private lateinit var progressText: TextView
     private lateinit var detailsText: TextView
@@ -41,8 +38,10 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
     private lateinit var captureButton: Button
     private lateinit var cancelButton: Button
     private lateinit var doneButton: Button
-    private var selectedFinger = FingerPosition.RIGHT_INDEX
+    private lateinit var fingerDropdown: MaterialAutoCompleteTextView
+    private var selectedFinger = FingerDropdownOptions.default
     private var employeeModel: RegistrationEmployeeUiModel? = null
+    private var previewOnly = false
     private var running = false
     private val matcher by lazy { SourceAfisFingerprintMatcher() }
     private val database by lazy { BiometricDatabase.create(applicationContext) }
@@ -53,8 +52,6 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_fingerprint_registration)
         KioskWindowInsets.apply(this, findViewById(R.id.registrationRoot))
-        employeeId = findViewById(R.id.registrationEmployeeId)
-        finger = findViewById(R.id.registrationFinger)
         visual = findViewById(R.id.registrationFingerprintVisual)
         progressText = findViewById(R.id.registrationProgress)
         detailsText = findViewById(R.id.registrationDetails)
@@ -64,12 +61,23 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
         captureButton = findViewById(R.id.registrationCaptureButton)
         cancelButton = findViewById(R.id.registrationCancelButton)
         doneButton = findViewById(R.id.registrationDoneButton)
+        fingerDropdown = findViewById(R.id.registrationFingerDropdown)
         findViewById<MaterialToolbar>(R.id.registrationToolbar).setNavigationOnClickListener { finish() }
-        val fingerLabels = FingerPosition.entries.map { it.displayName(this) }
-        finger.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, fingerLabels))
-        finger.setText(selectedFinger.displayName(this), false)
-        finger.setOnItemClickListener { _, _, position, _ -> selectedFinger = FingerPosition.entries[position] }
+        configureFingerSelection()
         configureEmployee()
+        findViewById<Button>(R.id.backToUserManagementButton).setOnClickListener {
+            startActivity(Intent(this, UserManagementActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            })
+            finish()
+        }
+        findViewById<Button>(R.id.debugPreviewRegistrationButton).apply {
+            visibility = if (isDebugBuild() && employeeModel == null) View.VISIBLE else View.GONE
+            setOnClickListener {
+                startActivity(createPreviewIntent(this@FingerprintRegistrationActivity))
+                finish()
+            }
+        }
         startButton.setOnClickListener { startEnrollment() }
         captureButton.setOnClickListener { captureNext() }
         cancelButton.setOnClickListener { render(service.cancel()) }
@@ -79,9 +87,10 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
     }
 
     private fun startEnrollment() {
-        val id = employeeModel?.employeeId ?: employeeId.text.toString().trim()
-        if (id.isBlank()) { employeeId.error = getString(R.string.employee_id_required); return }
-        runEnrollmentOperation("fingerprint-enrollment-start") { service.start(EnrollmentRequest(id, selectedFinger)) }
+        val employee = employeeModel ?: return
+        runEnrollmentOperation("fingerprint-enrollment-start") {
+            service.start(EnrollmentRequest(employee.employeeId, selectedFinger))
+        }
     }
 
     private fun captureNext() = runEnrollmentOperation("fingerprint-enrollment-capture") {
@@ -160,7 +169,7 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
 
     private fun refreshControls() {
         val state = service.currentSession()?.state
-        startButton.isEnabled = !running && state !in setOf(EnrollmentState.READY, EnrollmentState.CAPTURING,
+        startButton.isEnabled = employeeModel != null && !previewOnly && !running && state !in setOf(EnrollmentState.READY, EnrollmentState.CAPTURING,
             EnrollmentState.PROCESSING, EnrollmentState.SAVING)
         captureButton.isEnabled = !running && state in setOf(EnrollmentState.READY, EnrollmentState.FAILED)
         captureButton.setText(if (state == EnrollmentState.FAILED) R.string.retry_enrollment_save else R.string.capture_next)
@@ -169,29 +178,46 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
         captureButton.visibility = if (state in setOf(EnrollmentState.READY, EnrollmentState.FAILED)) View.VISIBLE else View.GONE
         cancelButton.visibility = if (state in setOf(EnrollmentState.READY, EnrollmentState.FAILED)) View.VISIBLE else View.GONE
         doneButton.visibility = if (state == EnrollmentState.COMPLETED) View.VISIBLE else View.GONE
-        employeeId.isEnabled = startButton.isEnabled && employeeModel == null
-        finger.isEnabled = startButton.isEnabled
+        val selectionEnabled = employeeModel != null && !running &&
+            state !in setOf(EnrollmentState.READY, EnrollmentState.CAPTURING,
+                EnrollmentState.PROCESSING, EnrollmentState.SAVING, EnrollmentState.FAILED, EnrollmentState.COMPLETED)
+        fingerDropdown.isEnabled = selectionEnabled
     }
 
     private fun configureEmployee() {
-        val suppliedId = intent.getStringExtra(EXTRA_EMPLOYEE_ID)?.trim().orEmpty()
-        val suppliedName = intent.getStringExtra(EXTRA_EMPLOYEE_DISPLAY_NAME)?.trim()?.takeIf(String::isNotEmpty)
-        val suppliedUserId = intent.getStringExtra(EXTRA_USER_ID)?.trim()?.takeIf(String::isNotEmpty)
-        employeeModel = suppliedId.takeIf(String::isNotEmpty)?.let { RegistrationEmployeeUiModel(it, suppliedName, suppliedUserId) }
-        val card = findViewById<View>(R.id.selectedEmployeeCard)
-        val manual = findViewById<View>(R.id.manualEmployeeContainer)
+        previewOnly = isDebugBuild() && intent.getBooleanExtra(EXTRA_PREVIEW_ONLY, false)
+        employeeModel = RegistrationEmployeeUiModel.from(
+            intent.getStringExtra(EXTRA_EMPLOYEE_ID),
+            intent.getStringExtra(EXTRA_EMPLOYEE_DISPLAY_NAME),
+            intent.getStringExtra(EXTRA_USER_ID),
+        )
+        val content = findViewById<View>(R.id.registrationEnrollmentContent)
+        val missing = findViewById<View>(R.id.missingEmployeeCard)
         employeeModel?.let { employee ->
-            card.visibility = View.VISIBLE
-            manual.visibility = View.GONE
-            findViewById<TextView>(R.id.selectedEmployeeName).text = employee.displayName ?: employee.employeeId
+            content.visibility = View.VISIBLE
+            missing.visibility = View.GONE
+            findViewById<TextView>(R.id.selectedEmployeeName).text = employee.displayName
             findViewById<TextView>(R.id.selectedEmployeeId).text = employee.employeeId
-            findViewById<TextView>(R.id.selectedEmployeeUserId).apply {
-                visibility = if (employee.userId == null) View.GONE else View.VISIBLE
-                text = employee.userId?.let { getString(R.string.employee_epf, it) }.orEmpty()
-            }
+            findViewById<TextView>(R.id.selectedEmployeeUserId).text = getString(R.string.employee_epf, employee.userId)
+            findViewById<View>(R.id.debugPreviewLabel).visibility = if (previewOnly) View.VISIBLE else View.GONE
         } ?: run {
-            card.visibility = View.GONE
-            manual.visibility = View.VISIBLE
+            content.visibility = View.GONE
+            missing.visibility = View.VISIBLE
+        }
+    }
+
+    private fun configureFingerSelection() {
+        val labels = FingerDropdownOptions.positions.map { it.displayName(this) }
+        fingerDropdown.apply {
+            setAdapter(ArrayAdapter(this@FingerprintRegistrationActivity, R.layout.item_finger_dropdown, labels))
+            setText(selectedFinger.displayName(this@FingerprintRegistrationActivity), false)
+            keyListener = null
+            showSoftInputOnFocus = false
+            setOnClickListener { if (isEnabled) showDropDown() }
+            setOnItemClickListener { _, _, position, _ ->
+                selectedFinger = FingerDropdownOptions.positionAt(position)
+                setText(selectedFinger.displayName(this@FingerprintRegistrationActivity), false)
+            }
         }
     }
 
@@ -208,12 +234,18 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
         const val EXTRA_EMPLOYEE_ID = "employeeId"
         const val EXTRA_EMPLOYEE_DISPLAY_NAME = "employeeDisplayName"
         const val EXTRA_USER_ID = "userId"
+        private const val EXTRA_PREVIEW_ONLY = "previewOnly"
 
         fun createIntent(context: Context, userId: String, employeeId: String, employeeDisplayName: String): Intent =
             Intent(context, FingerprintRegistrationActivity::class.java).apply {
                 putExtra(EXTRA_USER_ID, userId)
                 putExtra(EXTRA_EMPLOYEE_ID, employeeId)
                 putExtra(EXTRA_EMPLOYEE_DISPLAY_NAME, employeeDisplayName)
+            }
+
+        private fun createPreviewIntent(context: Context): Intent =
+            createIntent(context, "PREVIEW-EPF", "PREVIEW-EMP", "Preview Employee").apply {
+                putExtra(EXTRA_PREVIEW_ONLY, true)
             }
     }
 }
