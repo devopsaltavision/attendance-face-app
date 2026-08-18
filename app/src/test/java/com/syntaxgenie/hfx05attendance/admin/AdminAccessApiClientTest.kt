@@ -14,17 +14,17 @@ class AdminAccessApiClientTest {
         try {
             val config = BackendEnvironmentConfig(
                 baseUrl = server.url("/").toString(),
-                apiKey = "DEVICE_API_KEY_MUST_NOT_BE_SENT",
+                apiKey = "TEST_DEVICE_API_KEY",
                 environmentName = "Test",
             )
             val response = AdminAccessApiClient(config).create()
-                .checkAccess("Bearer FIREBASE_ID_TOKEN")
+                .checkAccess("Bearer TEST_FIREBASE_TOKEN")
                 .execute()
             val request = server.takeRequest()
 
             assertEquals(200, response.code())
             assertEquals("/api/admin/fingerprint-access", request.path)
-            assertEquals("Bearer FIREBASE_ID_TOKEN", request.getHeader("Authorization"))
+            assertEquals("Bearer TEST_FIREBASE_TOKEN", request.getHeader("Authorization"))
         } finally {
             server.shutdown()
         }

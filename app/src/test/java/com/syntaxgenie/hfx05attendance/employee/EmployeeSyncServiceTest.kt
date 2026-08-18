@@ -3,9 +3,12 @@ package com.syntaxgenie.hfx05attendance.employee
 import com.syntaxgenie.hfx05attendance.backend.BackendApiError
 import com.syntaxgenie.hfx05attendance.backend.BackendResult
 import com.syntaxgenie.hfx05attendance.backend.FingerprintApiClient
+import com.syntaxgenie.hfx05attendance.backend.FingerprintApiService
 import com.syntaxgenie.hfx05attendance.backend.config.BackendEnvironmentConfig
+import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -13,6 +16,9 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 
 class EmployeeSyncServiceTest {
     private lateinit var server: MockWebServer
@@ -27,7 +33,8 @@ class EmployeeSyncServiceTest {
         val request = server.takeRequest()
         assertEquals("POST", request.method)
         assertEquals("/api/fingerprint/sync-users", request.path)
-        assertEquals("Bearer TEST_KEY", request.getHeader("Authorization"))
+        assertEquals("Bearer TEST_DEVICE_API_KEY", request.getHeader("Authorization"))
+        assertFalse(request.getHeader("Authorization")!!.contains("TEST_FIREBASE_TOKEN"))
         assertEquals("{\"deviceId\":\"HF-X05-001\"}", request.body.readUtf8())
         val saved = directory.records.single()
         assertEquals("EPF001", saved.userId)
@@ -55,6 +62,31 @@ class EmployeeSyncServiceTest {
         service().syncFull()
         assertEquals(listOf("EPF001"), directory.records.map { it.userId })
         assertFalse(directory.records.single().active)
+    }
+
+    @Test fun emptySyncResponseClearsDirectoryAndAdvancesCursor() {
+        directory.records += employee("OLD", "OLD")
+        server.enqueue(MockResponse().setResponseCode(200).setBody(
+            """{"users":[],"serverTime":"2026-08-16T04:10:00.000Z","nextUpdatedAfter":"2026-08-16T04:10:00.000Z"}""",
+        ))
+
+        val result = service().syncFull() as BackendResult.Success
+
+        assertTrue(directory.records.isEmpty())
+        assertEquals(0, result.value.userCount)
+        assertEquals("2026-08-16T04:10:00.000Z", directory.state.nextUpdatedAfter)
+    }
+
+    @Test fun malformedJsonIsRejectedWithoutChangingDirectory() {
+        directory.records += employee("OLD", "OLD")
+        directory.state = EmployeeSyncState("old-cursor", "old-time")
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{not-json"))
+
+        val result = service().syncFull() as BackendResult.Error
+
+        assertEquals(BackendApiError.INVALID_RESPONSE, result.error)
+        assertEquals(listOf("OLD"), directory.records.map { it.userId })
+        assertEquals("old-cursor", directory.state.nextUpdatedAfter)
     }
 
     @Test fun cursorDoesNotAdvanceWhenLocalTransactionFails() {
@@ -88,6 +120,7 @@ class EmployeeSyncServiceTest {
             Triple(404, "FPA-001", BackendApiError.DEVICE_NOT_FOUND),
             Triple(400, "FPA-301", BackendApiError.INVALID_SYNC_CURSOR),
             Triple(500, "FPA-500", BackendApiError.SERVER_FAILURE),
+            Triple(502, "FPA-999", BackendApiError.SERVER_FAILURE),
             Triple(503, "FPA-503", BackendApiError.SERVER_FAILURE),
         ).forEach { (status, code, expected) ->
             server.enqueue(MockResponse().setResponseCode(status).setBody("{\"code\":\"$code\"}"))
@@ -102,6 +135,23 @@ class EmployeeSyncServiceTest {
         assertEquals(BackendApiError.NETWORK_FAILURE, (result as BackendResult.Error).error)
     }
 
+    @Test fun timeoutMapsToNetworkFailureWithoutChangingDirectory() {
+        directory.records += employee("OLD", "OLD")
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+        val config = config()
+        val api = Retrofit.Builder()
+            .baseUrl(config.normalizedBaseUrl())
+            .client(OkHttpClient.Builder().readTimeout(100, TimeUnit.MILLISECONDS).build())
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(FingerprintApiService::class.java)
+
+        val result = EmployeeSyncService(api, config, { "HF-X05-001" }, directory).syncFull()
+
+        assertEquals(BackendApiError.NETWORK_FAILURE, (result as BackendResult.Error).error)
+        assertEquals(listOf("OLD"), directory.records.map { it.userId })
+    }
+
     @Test fun unavailableNetworkDoesNotIssueRequest() {
         val config = config()
         val result = EmployeeSyncService(FingerprintApiClient(config).create(), config,
@@ -110,12 +160,12 @@ class EmployeeSyncServiceTest {
         assertEquals(0, server.requestCount)
     }
 
-    private fun service(key: String = "TEST_KEY", deviceId: String = "HF-X05-001"): EmployeeSyncService {
+    private fun service(key: String = "TEST_DEVICE_API_KEY", deviceId: String = "HF-X05-001"): EmployeeSyncService {
         val config = config(key)
         return EmployeeSyncService(FingerprintApiClient(config).create(), config, { deviceId }, directory,
             networkAvailable = { true }, now = { "sync-time" })
     }
-    private fun config(key: String = "TEST_KEY") = BackendEnvironmentConfig(server.url("/").toString(), key, "Test")
+    private fun config(key: String = "TEST_DEVICE_API_KEY") = BackendEnvironmentConfig(server.url("/").toString(), key, "Test")
     private fun employee(user: String, employee: String, name: String = "Name") = EmployeeRecord(user, employee, name, true, false, null, "updated")
     private fun responseJson(active: Boolean = true) = """{"users":[{"userId":"EPF001","employeeId":"EMP001","displayName":"John Silva","active":$active,"fingerprintEnrolled":false,"fingerprintEnrollmentId":null,"updatedAt":"2026-08-16T04:05:12.000Z"}],"serverTime":"2026-08-16T04:10:00.000Z","nextUpdatedAfter":"2026-08-16T04:10:00.000Z"}"""
 
