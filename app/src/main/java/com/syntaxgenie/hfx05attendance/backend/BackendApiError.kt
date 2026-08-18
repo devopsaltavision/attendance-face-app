@@ -8,6 +8,8 @@ enum class BackendApiError(val userMessage: String, val retryable: Boolean = fal
     DEVICE_NOT_FOUND("Attendance device is not provisioned"),
     DEVICE_DISABLED("This attendance device is disabled"),
     INVALID_SYNC_CURSOR("The user sync cursor is no longer valid"),
+    INVALID_ATTENDANCE_EVENT("Attendance event was rejected"),
+    ATTENDANCE_CONFLICT("Attendance event conflicts with existing data"),
     SERVER_FAILURE("Attendance server is temporarily unavailable", true),
     INVALID_RESPONSE("Attendance server returned an invalid response"),
     UNKNOWN("Unexpected user synchronization error"),

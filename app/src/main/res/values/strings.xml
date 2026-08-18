@@ -10,6 +10,11 @@
     <string name="scan_fingerprint">Scan Fingerprint</string>
     <string name="scanning_fingerprint">Scanning fingerprint…</string>
     <string name="identification_success">Employee identified: %1$s</string>
+    <string name="saving_attendance">Employee identified. Saving attendance…</string>
+    <string name="attendance_employee_not_found">Employee %1$s is not available in the local directory.</string>
+    <string name="attendance_recorded_synced">Attendance recorded: %1$s</string>
+    <string name="attendance_recorded_pending">Attendance recorded locally. Server synchronization is pending.</string>
+    <string name="attendance_action_recorded">RECORDED</string>
     <string name="fingerprint_visual">Fingerprint\nscanner</string>
     <string name="settings_placeholder">No settings are available yet.</string>
     <string name="back">Back</string>

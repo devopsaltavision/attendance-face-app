@@ -10,6 +10,10 @@ object BackendErrorMapper {
         status == 404 || backendCode == "FPA-001" -> BackendApiError.DEVICE_NOT_FOUND
         status == 403 || backendCode == "FPA-002" -> BackendApiError.DEVICE_DISABLED
         status == 400 && backendCode == "FPA-301" -> BackendApiError.INVALID_SYNC_CURSOR
+        status == 409 -> BackendApiError.ATTENDANCE_CONFLICT
+        backendCode == "FPA-201" || backendCode == "FPA-202" ||
+            backendCode == "FPA-003" || backendCode == "FPA-004" ||
+            backendCode == "FPA-005" || status == 400 -> BackendApiError.INVALID_ATTENDANCE_EVENT
         status in 500..599 -> BackendApiError.SERVER_FAILURE
         else -> BackendApiError.UNKNOWN
     }
