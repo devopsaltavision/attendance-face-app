@@ -43,6 +43,11 @@
     <string name="legacy_raw_capture">RAW CAPTURE (LEGACY / REFERENCE)</string>
     <string name="scanner_layer_capture">SCANNER LAYER CAPTURE</string>
     <string name="scanner_layer_capture_title">Scanner layer capture</string>
+    <string name="identification_score_calibration">IDENTIFICATION SCORE CALIBRATION</string>
+    <string name="identification_calibration_title">Identification score calibration</string>
+    <string name="identification_calibration_confirmation">Capture one fingerprint and compare it locally with enrolled templates. Scores and employee references will be added to the diagnostic report. No attendance event is created and no fingerprint data is uploaded or saved.</string>
+    <string name="run_identification_calibration">RUN SCORE CALIBRATION</string>
+    <string name="identification_calibration_finished">Identification scoring finished. Review the diagnostic report.</string>
     <string name="view_last_capture">VIEW LAST CAPTURE</string>
     <string name="capture_preview">Last locally captured fingerprint image</string>
     <string name="capture_hardware_unavailable">HF-X05 hardware unavailable on this device</string>

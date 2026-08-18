@@ -6,6 +6,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
@@ -16,6 +17,15 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.syntaxgenie.hfx05attendance.fingerprint.LowLevelAccessProbe
 import com.syntaxgenie.hfx05attendance.fingerprint.RawCaptureStorage
 import com.syntaxgenie.hfx05attendance.fingerprint.X05HardwareProbe
+import com.syntaxgenie.hfx05attendance.fingerprint.identification.IdentificationResult
+import com.syntaxgenie.hfx05attendance.fingerprint.identification.IdentificationScoreReport
+import com.syntaxgenie.hfx05attendance.fingerprint.identification.IdentificationScoringResult
+import com.syntaxgenie.hfx05attendance.fingerprint.identification.IdentificationService
+import com.syntaxgenie.hfx05attendance.fingerprint.identification.UnconfiguredIdentificationPolicy
+import com.syntaxgenie.hfx05attendance.fingerprint.matcher.sourceafis.SourceAfisFingerprintMatcher
+import com.syntaxgenie.hfx05attendance.fingerprint.repository.cache.BiometricTemplateCache
+import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.BiometricDatabase
+import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.LocalBiometricRepository
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.FingerprintImage
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.ScannerProgress
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.ScannerResult
@@ -35,11 +45,24 @@ class DiagnosticsActivity : AppCompatActivity() {
     private lateinit var copyButton: Button
     private lateinit var captureButton: Button
     private lateinit var scannerLayerCaptureButton: Button
+    private lateinit var identificationCalibrationButton: Button
     private lateinit var viewCaptureButton: Button
     private lateinit var capturePreview: ImageView
     private var report = "No diagnostic report has been collected yet."
     private var running = false
     private val fingerprintScanner by lazy { Hfx05FingerprintScanner() }
+    private val identificationMatcher by lazy { SourceAfisFingerprintMatcher() }
+    private val biometricDatabase by lazy { BiometricDatabase.create(applicationContext) }
+    private val biometricRepository by lazy {
+        LocalBiometricRepository(biometricDatabase.biometricTemplateDao(), identificationMatcher.metadata)
+    }
+    private val identificationService by lazy {
+        IdentificationService(
+            identificationMatcher,
+            BiometricTemplateCache(biometricRepository),
+            UnconfiguredIdentificationPolicy,
+        )
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,6 +76,7 @@ class DiagnosticsActivity : AppCompatActivity() {
         copyButton = findViewById(R.id.copyDiagnosticsButton)
         captureButton = findViewById(R.id.realCaptureButton)
         scannerLayerCaptureButton = findViewById(R.id.scannerLayerCaptureButton)
+        identificationCalibrationButton = findViewById(R.id.identificationCalibrationButton)
         viewCaptureButton = findViewById(R.id.viewLastCaptureButton)
         capturePreview = findViewById(R.id.capturePreview)
 
@@ -68,6 +92,10 @@ class DiagnosticsActivity : AppCompatActivity() {
         copyButton.setOnClickListener { copyReport() }
         captureButton.setOnClickListener { confirmCaptureTest() }
         scannerLayerCaptureButton.setOnClickListener { confirmScannerLayerCapture() }
+        identificationCalibrationButton.apply {
+            visibility = if (BuildConfig.DEBUG) View.VISIBLE else View.GONE
+            setOnClickListener { if (BuildConfig.DEBUG) confirmIdentificationCalibration() }
+        }
         viewCaptureButton.setOnClickListener { showLastCapture() }
         viewCaptureButton.isEnabled = captureRawFile().length() == CAPTURE_BYTES.toLong()
     }
@@ -160,6 +188,95 @@ class DiagnosticsActivity : AppCompatActivity() {
         activeButton.isEnabled = !value
         captureButton.isEnabled = !value
         scannerLayerCaptureButton.isEnabled = !value
+        identificationCalibrationButton.isEnabled = !value
+    }
+
+    private fun confirmIdentificationCalibration() {
+        if (!BuildConfig.DEBUG) return
+        AlertDialog.Builder(this)
+            .setTitle(R.string.identification_calibration_title)
+            .setMessage(R.string.identification_calibration_confirmation)
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.run_identification_calibration) { _, _ -> runIdentificationCalibration() }
+            .show()
+    }
+
+    private fun runIdentificationCalibration() {
+        if (!BuildConfig.DEBUG || running) return
+        setRunning(true)
+        Thread {
+            val reloadError = identificationService.reloadTemplates()
+            if (reloadError != null) {
+                finishIdentificationCalibration(formatIdentificationError(reloadError))
+                return@Thread
+            }
+            val capture = fingerprintScanner.capture { progress -> showProgress(scannerProgressMessage(progress)) }
+            when (capture) {
+                is ScannerResult.Error -> finishIdentificationCalibration(buildString {
+                    appendLine("=== IDENTIFICATION SCORE CALIBRATION ===")
+                    appendLine("capture: FAILED")
+                    appendLine("scanner error: ${capture.error.code} ${capture.error.userMessage}")
+                    appendLine("technical details: ${capture.diagnosticDetails ?: "none"}")
+                })
+                is ScannerResult.Success -> when (val scored = identificationService.scoreCandidates(capture.value)) {
+                    IdentificationScoringResult.NoTemplates -> finishIdentificationCalibration(
+                        "=== IDENTIFICATION SCORE CALIBRATION ===\ntemplates searched: 0\nresult: NO TEMPLATES",
+                    )
+                    is IdentificationScoringResult.Error -> finishIdentificationCalibration(buildString {
+                        appendLine("=== IDENTIFICATION SCORE CALIBRATION ===")
+                        appendLine("result: ERROR")
+                        appendLine("error: ${scored.error.code} ${scored.error.userMessage}")
+                        appendLine("technical details: ${scored.diagnosticDetails ?: "none"}")
+                    })
+                    is IdentificationScoringResult.Scored -> finishIdentificationCalibration(
+                        formatIdentificationScores(scored.report),
+                    )
+                }
+            }
+        }.apply { name = "hfx05-identification-calibration" }.start()
+    }
+
+    private fun formatIdentificationScores(scores: IdentificationScoreReport): String = buildString {
+        appendLine("=== IDENTIFICATION SCORE CALIBRATION ===")
+        appendLine("templates searched: ${scores.templatesSearched}")
+        appendLine("employee candidates: ${scores.candidates.size}")
+        scores.bestCandidate?.let {
+            appendLine("best employee: ${it.employeeId}")
+            appendLine("best score: ${"%.4f".format(Locale.US, it.score)}")
+            appendLine("best finger: ${it.fingerPosition.persistedValue}")
+            appendLine("best enrollment: ${it.enrollmentId}")
+            appendLine("best template slot: ${it.templateSlot}")
+        }
+        scores.secondBestCandidate?.let {
+            appendLine("second employee: ${it.employeeId}")
+            appendLine("second score: ${"%.4f".format(Locale.US, it.score)}")
+        }
+        appendLine("score margin: ${scores.scoreMargin?.let { "%.4f".format(Locale.US, it) } ?: "n/a"}")
+        when (val decision = identificationService.evaluate(scores)) {
+            is IdentificationResult.Error -> {
+                appendLine("policy result: UNCONFIGURED")
+                appendLine("policy note: ${decision.diagnosticDetails}")
+            }
+            else -> appendLine("policy result: ${decision.javaClass.simpleName}")
+        }
+        append("privacy: no fingerprint image or template was saved or uploaded by this calibration test")
+    }
+
+    private fun formatIdentificationError(error: IdentificationResult.Error): String = buildString {
+        appendLine("=== IDENTIFICATION SCORE CALIBRATION ===")
+        appendLine("template cache: FAILED")
+        appendLine("error: ${error.error.code} ${error.error.userMessage}")
+        append("technical details: ${error.diagnosticDetails ?: "none"}")
+    }
+
+    private fun finishIdentificationCalibration(section: String) {
+        appendCaptureReport(section)
+        runOnUiThread {
+            statusText.text = getString(R.string.identification_calibration_finished)
+            reportText.text = report
+            copyButton.isEnabled = true
+            setRunning(false)
+        }
     }
 
     private fun confirmCaptureTest() {
