@@ -46,3 +46,5 @@ BetterHR-JADX/
 **/assets/account
 **/assets/password
 **/license.txt
+
+app/google-services.json

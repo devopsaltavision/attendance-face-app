@@ -64,6 +64,13 @@
     <string name="password">Password</string>
     <string name="login">LOGIN</string>
     <string name="admin_auth_unavailable">Admin authentication is not configured yet.</string>
+    <string name="admin_authenticating">Signing in…</string>
+    <string name="admin_auth_invalid_credentials">Invalid email or password.</string>
+    <string name="admin_auth_account_disabled">This account is disabled.</string>
+    <string name="admin_auth_network_unavailable">Unable to connect. Check the network connection and try again.</string>
+    <string name="admin_auth_session_invalid">Your authentication session is invalid. Please sign in again.</string>
+    <string name="admin_auth_permission_denied">You do not have permission to access Admin Tools.</string>
+    <string name="admin_auth_service_unavailable">Admin authentication service is temporarily unavailable.</string>
     <string name="admin_login_success">Admin access granted.</string>
     <string name="admin_login_failed">Admin authentication failed.</string>
     <string name="debug_open_admin">DEBUG — OPEN ADMIN TOOLS</string>

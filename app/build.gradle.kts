@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.androidx.room)
+    alias(libs.plugins.google.services)
 }
 
 val localConfiguration = Properties().apply {
@@ -84,6 +85,8 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofit.gson)
     implementation(libs.okhttp)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
     annotationProcessor(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.okhttp.mockwebserver)

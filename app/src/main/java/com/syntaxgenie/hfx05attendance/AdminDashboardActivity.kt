@@ -6,6 +6,7 @@ import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.appbar.MaterialToolbar
+import com.google.firebase.auth.FirebaseAuth
 import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
 
 class AdminDashboardActivity : AppCompatActivity() {
@@ -32,6 +33,7 @@ class AdminDashboardActivity : AppCompatActivity() {
             }
         }
         findViewById<Button>(R.id.logoutButton).setOnClickListener {
+            FirebaseAuth.getInstance().signOut()
             startActivity(Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             })
