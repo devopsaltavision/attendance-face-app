@@ -65,6 +65,10 @@
     <string name="admin_settings">Admin settings</string>
     <string name="ready_to_scan">READY TO SCAN</string>
     <string name="place_finger_on_sensor">Place your finger on the sensor</string>
+    <string name="fingerprint_not_recognized">Fingerprint not registered. Please try again.</string>
+    <string name="fingerprint_match_ambiguous">Fingerprint match was ambiguous. Please try again.</string>
+    <string name="no_fingerprint_templates">No fingerprints enrolled</string>
+    <string name="employee_record_not_found">Employee record not found</string>
     <string name="fingerprint_visual_description">Fingerprint status visual</string>
     <string name="sync_not_configured">Sync not configured</string>
     <string name="admin_login">Admin Login</string>
