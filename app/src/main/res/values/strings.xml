@@ -138,6 +138,7 @@
     <string name="search_users">Search users</string>
     <string name="sync_users">SYNC USERS</string>
     <string name="full_refresh">FULL REFRESH</string>
+    <string name="refresh_users">Refresh users</string>
     <string name="syncing_users">Syncing users…</string>
     <string name="users_synced">%1$d users synced</string>
     <string name="users_up_to_date">Users already up to date</string>

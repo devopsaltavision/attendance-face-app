@@ -8,12 +8,13 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
-import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.syntaxgenie.hfx05attendance.backend.BackendResult
 import com.syntaxgenie.hfx05attendance.backend.FingerprintApiClient
@@ -29,8 +30,11 @@ class UserManagementActivity : AppCompatActivity() {
     private lateinit var rows: LinearLayout
     private lateinit var status: TextView
     private lateinit var empty: TextView
-    private lateinit var syncButton: Button
-    private lateinit var fullButton: Button
+    private lateinit var searchInput: EditText
+    private lateinit var refreshButton: MaterialButton
+    private var allUsers: List<EmployeeRecord> = emptyList()
+    private var displayedUsers: List<EmployeeRecord> = emptyList()
+    private var refreshing = false
     private val database by lazy { EmployeeDirectoryDatabase.create(applicationContext) }
     private val directory by lazy { LocalEmployeeDirectory(database.employeeDao()) }
     private val deviceConfiguration by lazy { DeviceConfigurationRepository(this) }
@@ -48,30 +52,46 @@ class UserManagementActivity : AppCompatActivity() {
         rows = findViewById(R.id.employeeRows)
         status = findViewById(R.id.userSyncStatus)
         empty = findViewById(R.id.emptyUsersText)
-        syncButton = findViewById(R.id.syncUsersButton)
-        fullButton = findViewById(R.id.fullRefreshButton)
-        syncButton.setOnClickListener { sync(false) }
-        fullButton.setOnClickListener { sync(true) }
-        findViewById<TextView>(R.id.userSearchInput).addTextChangedListener(object : TextWatcher {
+        searchInput = findViewById(R.id.userSearchInput)
+        refreshButton = findViewById(R.id.refreshUsersButton)
+        refreshButton.setOnClickListener { refresh() }
+        searchInput.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { load(s?.toString().orEmpty()) }
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                filterUsers(s?.toString().orEmpty())
+            }
             override fun afterTextChanged(s: Editable?) = Unit
         })
-        load("")
+        loadLocalUsers()
     }
 
-    private fun load(query: String) {
+    private fun loadLocalUsers() {
         Thread {
-            val users = if (query.isBlank()) directory.getAll() else directory.search(query)
-            runOnUiThread { renderUsers(users) }
+            val users = directory.getAll()
+            runOnUiThread {
+                allUsers = users
+                filterUsers(searchInput.text?.toString().orEmpty())
+            }
         }.apply { name = "employee-directory-read" }.start()
     }
 
-    private fun sync(full: Boolean) {
+    private fun filterUsers(query: String) {
+        val term = query.trim()
+        displayedUsers = if (term.isEmpty()) allUsers else allUsers.filter { employee ->
+            employee.displayName.contains(term, ignoreCase = true) ||
+                employee.employeeId.contains(term, ignoreCase = true) ||
+                employee.userId.contains(term, ignoreCase = true)
+        }
+        renderUsers(displayedUsers)
+    }
+
+    private fun refresh() {
+        if (refreshing) return
+        searchInput.text?.clear()
         setBusy(true)
         status.setText(R.string.syncing_users)
         Thread {
-            val result = if (full) syncService.syncFull() else syncService.syncIncremental()
+            val result = syncService.syncFull()
             runOnUiThread {
                 setBusy(false)
                 status.text = when (result) {
@@ -85,7 +105,7 @@ class UserManagementActivity : AppCompatActivity() {
                         }
                     }
                 }
-                load("")
+                loadLocalUsers()
             }
         }.apply { name = "employee-user-sync" }.start()
     }
@@ -122,7 +142,11 @@ class UserManagementActivity : AppCompatActivity() {
         return card
     }
 
-    private fun setBusy(busy: Boolean) { syncButton.isEnabled = !busy; fullButton.isEnabled = !busy }
+    private fun setBusy(busy: Boolean) {
+        refreshing = busy
+        refreshButton.isEnabled = !busy
+        refreshButton.icon = getDrawable(if (busy) android.R.drawable.ic_popup_sync else android.R.drawable.ic_menu_rotate)
+    }
     private fun networkAvailable(): Boolean {
         val manager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = manager.activeNetwork ?: return false
