@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import android.widget.ImageButton
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -11,6 +12,8 @@ import androidx.core.content.ContextCompat
 import com.google.firebase.auth.FirebaseAuth
 import com.syntaxgenie.hfx05attendance.attendance.AttendanceHomeModel
 import com.syntaxgenie.hfx05attendance.attendance.AttendanceHomeState
+import com.syntaxgenie.hfx05attendance.backend.config.BackendEnvironmentConfig
+import com.syntaxgenie.hfx05attendance.backend.config.DeviceConfigurationRepository
 import com.syntaxgenie.hfx05attendance.ui.FingerprintVisualView
 import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
 import java.text.SimpleDateFormat
@@ -18,6 +21,12 @@ import java.util.Date
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
+    private val syncConfigured by lazy {
+        val environment = BackendEnvironmentConfig()
+        val deviceConfiguration = DeviceConfigurationRepository(this, environment)
+        environment.apiKeyConfigured && environment.baseUrl.isNotBlank() &&
+            deviceConfiguration.deviceId().isNotBlank()
+    }
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var root: android.view.View
     private lateinit var timeText: TextView
@@ -87,8 +96,7 @@ class MainActivity : AppCompatActivity() {
         instructionText.text = model.instruction.orEmpty()
         detailText.text = listOfNotNull(model.employeeName, model.employeeId,
             model.attendanceActionLabel, model.attendanceTimeLabel).joinToString("\n")
-        syncStatusText.visibility = if (model.state == AttendanceHomeState.SUCCESS) android.view.View.INVISIBLE
-            else android.view.View.VISIBLE
+        syncStatusText.visibility = if (syncConfigured) View.GONE else View.VISIBLE
         val textColor = ContextCompat.getColor(this,
             if (model.state == AttendanceHomeState.SUCCESS) R.color.white else R.color.attendance_text)
         listOf(timeText, dateText, titleText, instructionText, detailText).forEach { it.setTextColor(textColor) }
