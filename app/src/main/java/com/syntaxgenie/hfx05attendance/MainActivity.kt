@@ -8,6 +8,7 @@ import android.widget.ImageButton
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.google.firebase.auth.FirebaseAuth
 import com.syntaxgenie.hfx05attendance.attendance.AttendanceHomeModel
 import com.syntaxgenie.hfx05attendance.attendance.AttendanceHomeState
 import com.syntaxgenie.hfx05attendance.ui.FingerprintVisualView
@@ -47,7 +48,12 @@ class MainActivity : AppCompatActivity() {
         detailText = findViewById(R.id.attendanceDetail)
         syncStatusText = findViewById(R.id.homeSyncStatus)
         findViewById<ImageButton>(R.id.adminButton).setOnClickListener {
-            startActivity(Intent(this, AdminLoginActivity::class.java))
+            val destination = if (FirebaseAuth.getInstance().currentUser == null) {
+                AdminLoginActivity::class.java
+            } else {
+                AdminDashboardActivity::class.java
+            }
+            startActivity(Intent(this, destination))
         }
         render(defaultReadyModel())
     }

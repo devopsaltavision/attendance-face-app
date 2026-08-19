@@ -29,6 +29,11 @@ class AdminLoginActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_admin_login)
         KioskWindowInsets.apply(this, findViewById(R.id.adminLoginRoot))
+        if (FirebaseAuth.getInstance().currentUser != null) {
+            startActivity(Intent(this, AdminDashboardActivity::class.java))
+            finish()
+            return
+        }
         findViewById<MaterialToolbar>(R.id.adminLoginToolbar).setNavigationOnClickListener { finish() }
         val message = findViewById<TextView>(R.id.adminAuthMessage)
         val username = findViewById<EditText>(R.id.adminUsername)
@@ -48,6 +53,7 @@ class AdminLoginActivity : AppCompatActivity() {
                 } else {
                     setLoginRunning(false, loginButton, username, password, message)
                     message.text = messageFor(result)
+                    message.visibility = View.VISIBLE
                 }
             }
         }
@@ -70,7 +76,10 @@ class AdminLoginActivity : AppCompatActivity() {
         loginButton.isEnabled = !running
         username.isEnabled = !running
         password.isEnabled = !running
-        if (running) message.setText(R.string.admin_authenticating)
+        if (running) {
+            message.setText(R.string.admin_authenticating)
+            message.visibility = View.VISIBLE
+        }
     }
 
     private fun messageFor(result: AdminAuthResult): String = getString(when (result) {
