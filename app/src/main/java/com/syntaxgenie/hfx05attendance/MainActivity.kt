@@ -34,6 +34,7 @@ import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.BiometricDat
 import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.LocalBiometricRepository
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.ScannerProgress
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.ScannerResult
+import com.syntaxgenie.hfx05attendance.fingerprint.scanner.ScannerError
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.hfx05.Hfx05FingerprintScanner
 import com.syntaxgenie.hfx05attendance.ui.FingerprintVisualView
 import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
@@ -146,7 +147,7 @@ class MainActivity : AppCompatActivity() {
                     templatesLoadedGeneration = generation
                 }
                 val capture = scanner.capture { progress ->
-                    if (progress == ScannerProgress.WAITING_FOR_FINGER || progress == ScannerProgress.CAPTURING) {
+                    if (progress == ScannerProgress.CAPTURING) {
                         runOnUiThread {
                             if (isCurrentScan(generation)) render(AttendanceHomeModel(
                                 AttendanceHomeState.SCANNING,
@@ -160,8 +161,11 @@ class MainActivity : AppCompatActivity() {
                 when (capture) {
                     is ScannerResult.Success -> handleIdentification(generation,
                         identificationService.identify(capture.value))
-                    is ScannerResult.Error -> showScanResult(generation, AttendanceHomeState.FAILURE,
-                        capture.error.userMessage)
+                    is ScannerResult.Error -> if (capture.error == ScannerError.HARDWARE_UNAVAILABLE) {
+                        showTerminalScannerError(generation, capture.error.userMessage)
+                    } else {
+                        showScanResult(generation, AttendanceHomeState.FAILURE, capture.error.userMessage)
+                    }
                 }
             } finally {
                 scanWorkerRunning.set(false)
@@ -214,6 +218,12 @@ class MainActivity : AppCompatActivity() {
         if (!isCurrentScan(generation)) return@runOnUiThread
         render(AttendanceHomeModel(state, message, getString(R.string.place_finger_on_sensor)))
         handler.postDelayed(resetReady, SUCCESS_DURATION_MS)
+    }
+
+    private fun showTerminalScannerError(generation: Int, message: String) = runOnUiThread {
+        if (!isCurrentScan(generation)) return@runOnUiThread
+        handler.removeCallbacks(resetReady)
+        render(AttendanceHomeModel(AttendanceHomeState.FAILURE, message))
     }
 
     private fun isCurrentScan(generation: Int) = scanActive && generation == scanGeneration &&
