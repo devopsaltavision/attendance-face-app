@@ -22,11 +22,21 @@ import com.syntaxgenie.hfx05attendance.fingerprint.matcher.sourceafis.SourceAfis
 import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.BiometricDatabase
 import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.LocalBiometricRepository
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.hfx05.Hfx05FingerprintScanner
+import com.syntaxgenie.hfx05attendance.backend.FingerprintApiClient
+import com.syntaxgenie.hfx05attendance.backend.config.BackendEnvironmentConfig
+import com.syntaxgenie.hfx05attendance.backend.config.DeviceConfigurationRepository
+import com.syntaxgenie.hfx05attendance.backend.dto.EnrollmentTemplateRecordDto
+import com.syntaxgenie.hfx05attendance.backend.dto.RecordEnrollmentRequestDto
+import com.syntaxgenie.hfx05attendance.fingerprint.repository.RepositoryResult
 import com.syntaxgenie.hfx05attendance.ui.FingerprintVisualView
 import com.syntaxgenie.hfx05attendance.ui.FingerDropdownOptions
 import com.syntaxgenie.hfx05attendance.ui.RegistrationEmployeeUiModel
 import com.syntaxgenie.hfx05attendance.ui.displayName
 import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 class FingerprintRegistrationActivity : AppCompatActivity() {
     private lateinit var visual: FingerprintVisualView
@@ -43,10 +53,15 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
     private var employeeModel: RegistrationEmployeeUiModel? = null
     private var previewOnly = false
     private var running = false
+    private var enrollmentSyncStarted = false
     private val matcher by lazy { SourceAfisFingerprintMatcher() }
     private val database by lazy { BiometricDatabase.create(applicationContext) }
     private val repository by lazy { LocalBiometricRepository(database.biometricTemplateDao(), matcher.metadata) }
     private val service by lazy { FingerprintEnrollmentService(Hfx05FingerprintScanner(), matcher, repository) }
+    private val deviceConfiguration by lazy { DeviceConfigurationRepository(this) }
+    private val enrollmentApi by lazy {
+        FingerprintApiClient(BackendEnvironmentConfig()).create()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -121,6 +136,7 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
                         session.employeeId,
                         session.fingerPosition.displayName(this),
                         session.completedCaptures)
+                    if (!enrollmentSyncStarted) syncEnrollmentMetadata(session.enrollmentId)
                 }
                 EnrollmentState.CANCELLED -> {
                     visual.render(FingerprintVisualView.State.READY)
@@ -140,6 +156,47 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
             }
         }
         refreshControls()
+    }
+
+    private fun syncEnrollmentMetadata(enrollmentId: String) {
+        val employee = employeeModel ?: return
+        enrollmentSyncStarted = true
+        Thread {
+            val records = when (val result = repository.getByEnrollmentId(enrollmentId)) {
+                is RepositoryResult.Success -> result.value.sortedBy { it.templateSlot }
+                is RepositoryResult.Error -> emptyList()
+            }
+            val synced = if (records.size == 5 && records.map { it.templateSlot } == (1..5).toList()) {
+                val first = records.first()
+                val metadata = first.template.metadata
+                val enrolledAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US).apply {
+                    timeZone = TimeZone.getTimeZone("UTC")
+                }.format(Date(first.createdAtEpochMillis))
+                runCatching {
+                    val response = enrollmentApi.recordEnrollment(RecordEnrollmentRequestDto(
+                        enrollmentId = enrollmentId,
+                        deviceId = deviceConfiguration.deviceId(),
+                        userId = employee.userId,
+                        employeeId = employee.employeeId,
+                        fingerPosition = first.fingerPosition.persistedValue,
+                        matcherEngine = metadata.engine,
+                        matcherImplementationVersion = metadata.implementationVersion,
+                        templateFormat = metadata.templateFormat,
+                        templateFormatVersion = metadata.templateFormatVersion,
+                        enrolledAtDevice = enrolledAt,
+                        templates = records.map { EnrollmentTemplateRecordDto(it.recordId, it.templateSlot) },
+                    )).execute()
+                    response.isSuccessful && response.body()?.let {
+                        it.enrollmentId == enrollmentId && it.status in setOf("RECORDED", "ALREADY_RECORDED")
+                    } == true
+                }.getOrDefault(false)
+            } else false
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                progressText.setText(if (synced) R.string.fingerprint_registered_synced
+                    else R.string.fingerprint_registered_sync_pending)
+            }
+        }.apply { name = "fingerprint-enrollment-metadata-sync" }.start()
     }
 
     private fun renderProgress(progress: EnrollmentProgress) {

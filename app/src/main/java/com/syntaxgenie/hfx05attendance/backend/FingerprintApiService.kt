@@ -9,8 +9,13 @@ import com.syntaxgenie.hfx05attendance.backend.dto.RecordAttendanceResponseDto
 import retrofit2.Call
 import retrofit2.http.Body
 import retrofit2.http.POST
+import com.syntaxgenie.hfx05attendance.backend.dto.RecordEnrollmentRequestDto
+import com.syntaxgenie.hfx05attendance.backend.dto.RecordEnrollmentResponseDto
 
 interface FingerprintApiService {
+    @POST("api/fingerprint/enrollments")
+    fun recordEnrollment(@Body request: RecordEnrollmentRequestDto): Call<RecordEnrollmentResponseDto>
+
     @POST("api/fingerprint/sync-users")
     fun syncUsers(@Body request: SyncUsersRequestDto): Call<SyncUsersResponseDto>
 

@@ -107,6 +107,8 @@
     <string name="processing_progress">Processing capture %1$d of %2$d…</string>
     <string name="saving_enrollment">Saving enrollment…</string>
     <string name="fingerprint_registered">Fingerprint Registered</string>
+    <string name="fingerprint_registered_synced">Fingerprint registered and synced</string>
+    <string name="fingerprint_registered_sync_pending">Fingerprint saved locally; backend sync failed or is pending</string>
     <string name="registration_complete_details">%1$s\n%2$s\n\n%3$s\n\n%4$d fingerprint captures completed</string>
     <string name="enrollment_cancelled">Enrollment cancelled. No templates stored.</string>
     <string name="employee">Employee</string>

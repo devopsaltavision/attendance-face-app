@@ -27,6 +27,7 @@ import com.syntaxgenie.hfx05attendance.employee.local.EmployeeDirectoryDatabase
 import com.syntaxgenie.hfx05attendance.employee.local.LocalEmployeeDirectory
 import com.syntaxgenie.hfx05attendance.fingerprint.identification.IdentificationResult
 import com.syntaxgenie.hfx05attendance.fingerprint.identification.IdentificationService
+import com.syntaxgenie.hfx05attendance.fingerprint.identification.ScoreThresholdIdentificationPolicy
 import com.syntaxgenie.hfx05attendance.fingerprint.matcher.sourceafis.SourceAfisFingerprintMatcher
 import com.syntaxgenie.hfx05attendance.fingerprint.repository.cache.BiometricTemplateCache
 import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.BiometricDatabase
@@ -47,7 +48,10 @@ class MainActivity : AppCompatActivity() {
     private val biometricDatabase by lazy { BiometricDatabase.create(applicationContext) }
     private val identificationService by lazy {
         val repository = LocalBiometricRepository(biometricDatabase.biometricTemplateDao(), matcher.metadata)
-        IdentificationService(matcher, BiometricTemplateCache(repository))
+        IdentificationService(matcher, BiometricTemplateCache(repository), ScoreThresholdIdentificationPolicy(
+            ApplicationIdentificationConfig.PROVISIONAL_IDENTIFICATION_MIN_SCORE,
+            ApplicationIdentificationConfig.PROVISIONAL_IDENTIFICATION_MIN_MARGIN,
+        ))
     }
     private val employeeDatabase by lazy { EmployeeDirectoryDatabase.create(applicationContext) }
     private val employeeDirectory by lazy { LocalEmployeeDirectory(employeeDatabase.employeeDao()) }
