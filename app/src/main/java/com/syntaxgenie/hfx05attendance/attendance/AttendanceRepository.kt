@@ -5,4 +5,5 @@ interface AttendanceRepository {
     fun get(eventId: String): AttendanceEvent?
     fun pending(limit: Int): List<AttendanceEvent>
     fun markSynced(eventId: String, attendanceRecordId: String?, attendanceAction: String?, serverTimestamp: String)
+    fun delete(eventId: String): Boolean = false
 }

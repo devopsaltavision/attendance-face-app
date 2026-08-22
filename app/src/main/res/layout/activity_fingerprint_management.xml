@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/fingerprintManagementRoot" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical">
+    <com.google.android.material.appbar.MaterialToolbar android:id="@+id/fingerprintManagementToolbar"
+        android:layout_width="match_parent" android:layout_height="?attr/actionBarSize"
+        android:background="@color/attendance_surface" app:navigationIcon="?attr/homeAsUpIndicator"
+        app:title="@string/fingerprint_management" app:titleTextColor="@color/attendance_text" />
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="18dp"
+        android:text="@string/local_fingerprints_notice" android:textColor="@color/attendance_text_secondary" />
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:paddingHorizontal="18dp">
+            <TextView android:id="@+id/localEnrollmentsEmpty" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:gravity="center" android:padding="32dp"
+                android:text="@string/no_local_fingerprints" />
+            <LinearLayout android:id="@+id/localEnrollmentRows" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:orientation="vertical" />
+        </LinearLayout>
+    </ScrollView>
+    <com.google.android.material.button.MaterialButton android:id="@+id/clearAllLocalFingerprints"
+        style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent"
+        android:layout_height="56dp" android:layout_margin="18dp" android:text="@string/clear_all_local_fingerprints" />
+</LinearLayout>

@@ -142,6 +142,14 @@
                         android:maxLines="1" />
                 </com.google.android.material.textfield.TextInputLayout>
 
+                <LinearLayout android:id="@+id/registrationEmulatorControls" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:layout_marginTop="8dp" android:orientation="horizontal"
+                    android:visibility="gone">
+                    <com.google.android.material.button.MaterialButton android:id="@+id/registrationEmulatorCapture"
+                        android:layout_width="match_parent" android:layout_height="56dp"
+                        android:text="@string/simulate_enrollment" />
+                </LinearLayout>
+
                 <com.syntaxgenie.hfx05attendance.ui.FingerprintVisualView android:id="@+id/registrationFingerprintVisual" android:layout_width="185dp" android:layout_height="220dp" android:layout_gravity="center_horizontal" android:layout_marginTop="4dp" android:contentDescription="@string/fingerprint_visual_description" />
                 <TextView android:id="@+id/registrationProgress" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:text="@string/capture_zero_of_five" android:textAppearance="@style/TextAppearance.Material3.TitleLarge" android:textStyle="bold" />
                 <TextView android:id="@+id/registrationGuidance" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="5dp" android:gravity="center" android:text="@string/capture_guidance_first" android:textColor="@color/attendance_text_secondary" />

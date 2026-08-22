@@ -16,6 +16,7 @@ class LocalAttendanceRepository(private val dao: AttendanceDao) : AttendanceRepo
         attendanceAction: String?,
         serverTimestamp: String,
     ) = dao.markSynced(eventId, attendanceRecordId, attendanceAction, serverTimestamp)
+    override fun delete(eventId: String): Boolean = dao.delete(eventId) > 0
 
     private fun AttendanceEvent.toEntity() = AttendanceEventEntity(eventId, userId, employeeId,
         deviceTimestamp, syncState.name, attendanceRecordId, attendanceAction, serverTimestamp)

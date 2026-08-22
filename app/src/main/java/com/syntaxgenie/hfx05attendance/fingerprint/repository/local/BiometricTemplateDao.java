@@ -44,4 +44,10 @@ public interface BiometricTemplateDao {
 
     @Query("DELETE FROM biometric_templates WHERE employee_id = :employeeId")
     int deleteByEmployee(String employeeId);
+
+    @Query("DELETE FROM biometric_templates WHERE enrollment_id = :enrollmentId")
+    int deleteByEnrollmentId(String enrollmentId);
+
+    @Query("DELETE FROM biometric_templates")
+    int deleteAll();
 }

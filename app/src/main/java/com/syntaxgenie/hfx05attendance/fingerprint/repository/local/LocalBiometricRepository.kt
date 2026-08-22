@@ -116,6 +116,11 @@ class LocalBiometricRepository(
     override fun deleteByEmployee(employeeId: String): RepositoryResult<Int> =
         delete("deleteByEmployee") { dao.deleteByEmployee(employeeId) }
 
+    fun deleteByEnrollmentId(enrollmentId: String): RepositoryResult<Int> =
+        delete("deleteByEnrollmentId") { dao.deleteByEnrollmentId(enrollmentId) }
+
+    fun deleteAll(): RepositoryResult<Int> = delete("deleteAll", dao::deleteAll)
+
     override fun diagnostics(): BiometricRepositorySnapshot = snapshot
 
     private fun validateEnrollment(records: List<BiometricRecord>): RepositoryResult.Error? {

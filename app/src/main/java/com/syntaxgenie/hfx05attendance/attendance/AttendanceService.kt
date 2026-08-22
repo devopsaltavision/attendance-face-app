@@ -12,12 +12,13 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
-enum class AttendanceRecordStatus { SYNCED, PENDING }
+enum class AttendanceRecordStatus { SYNCED, PENDING, DUPLICATE_IGNORED }
 
 data class AttendanceRecordOutcome(
     val event: AttendanceEvent,
     val status: AttendanceRecordStatus,
     val error: BackendApiError? = null,
+    val message: String? = null,
 )
 
 data class AttendanceSyncSummary(
@@ -107,12 +108,19 @@ class AttendanceService(
             } else {
                 val value = response.body()
                     ?: return AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING, BackendApiError.INVALID_RESPONSE)
-                if (value.attendanceEventId != event.eventId || value.serverTimestamp.isBlank()) {
+                if (value.attendanceEventId != event.eventId) {
                     return AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING, BackendApiError.INVALID_RESPONSE)
                 }
-                if (value.status == RECORDED || value.status == ALREADY_RECORDED) {
+                if (value.status == DUPLICATE_IGNORED) {
+                    repository.delete(event.eventId)
+                    AttendanceRecordOutcome(event, AttendanceRecordStatus.DUPLICATE_IGNORED,
+                        message = value.message)
+                } else if (value.status == RECORDED || value.status == ALREADY_RECORDED) {
+                    val serverTimestamp = value.serverTimestamp?.takeIf { it.isNotBlank() }
+                        ?: return AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING,
+                            BackendApiError.INVALID_RESPONSE)
                     repository.markSynced(event.eventId, value.attendanceRecordId,
-                        value.attendanceAction, value.serverTimestamp)
+                        value.attendanceAction, serverTimestamp)
                     AttendanceRecordOutcome(repository.get(event.eventId) ?: event,
                         AttendanceRecordStatus.SYNCED)
                 } else {
@@ -138,6 +146,7 @@ class AttendanceService(
         const val MAX_BATCH_SIZE = 50
         const val RECORDED = "RECORDED"
         const val ALREADY_RECORDED = "ALREADY_RECORDED"
+        const val DUPLICATE_IGNORED = "DUPLICATE_IGNORED"
         const val FAILED = "FAILED"
     }
 }

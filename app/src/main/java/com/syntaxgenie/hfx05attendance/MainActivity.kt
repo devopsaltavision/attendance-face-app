@@ -9,6 +9,9 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.widget.ImageButton
+import android.widget.Button
+import android.widget.ArrayAdapter
+import android.widget.Spinner
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -81,6 +84,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var instructionText: TextView
     private lateinit var detailText: TextView
     private lateinit var syncStatusText: TextView
+    private var emulatorEmployees: List<EmployeeRecord> = emptyList()
     private val clockTick = object : Runnable {
         override fun run() {
             updateClock()
@@ -106,6 +110,7 @@ class MainActivity : AppCompatActivity() {
         instructionText = findViewById(R.id.attendanceInstruction)
         detailText = findViewById(R.id.attendanceDetail)
         syncStatusText = findViewById(R.id.homeSyncStatus)
+        configureEmulatorControls()
         findViewById<ImageButton>(R.id.adminButton).setOnClickListener {
             val destination = if (FirebaseAuth.getInstance().currentUser == null) {
                 AdminLoginActivity::class.java
@@ -123,7 +128,7 @@ class MainActivity : AppCompatActivity() {
         scanActive = true
         scanGeneration++
         render(defaultReadyModel())
-        startScanWorker()
+        if (!BuildConfig.FINGERPRINT_EMULATOR) startScanWorker()
     }
 
     override fun onStop() {
@@ -135,7 +140,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startScanWorker() {
-        if (!scanActive || !scanWorkerRunning.compareAndSet(false, true)) return
+        if (BuildConfig.FINGERPRINT_EMULATOR || !scanActive || !scanWorkerRunning.compareAndSet(false, true)) return
         val generation = scanGeneration
         Thread {
             try {
@@ -181,8 +186,7 @@ class MainActivity : AppCompatActivity() {
                     .firstOrNull { it.employeeId.equals(result.employeeId, ignoreCase = true) }
                 if (employee == null) showScanResult(generation, AttendanceHomeState.FAILURE,
                     getString(R.string.employee_record_not_found))
-                else showAttendanceResult(generation, employee,
-                    attendanceService.record(employee.userId, employee.employeeId))
+                else handleSuccessfulIdentification(generation, employee)
             }
             is IdentificationResult.Unknown -> showScanResult(generation, AttendanceHomeState.FAILURE,
                 getString(R.string.fingerprint_not_recognized))
@@ -195,12 +199,28 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun handleSuccessfulIdentification(generation: Int, employee: EmployeeRecord) {
+        showAttendanceResult(generation, employee,
+            attendanceService.record(employee.userId, employee.employeeId))
+    }
+
     private fun showAttendanceResult(
         generation: Int,
         employee: EmployeeRecord,
         outcome: AttendanceRecordOutcome,
     ) = runOnUiThread {
         if (!isCurrentScan(generation)) return@runOnUiThread
+        if (outcome.status == AttendanceRecordStatus.DUPLICATE_IGNORED) {
+            render(AttendanceHomeModel(
+                AttendanceHomeState.WARNING,
+                getString(R.string.attendance_already_recorded),
+                getString(R.string.attendance_duplicate_try_again),
+                employeeName = employee.displayName,
+                employeeId = employee.employeeId,
+            ))
+            handler.postDelayed(resetReady, SUCCESS_DURATION_MS)
+            return@runOnUiThread
+        }
         val synced = outcome.status == AttendanceRecordStatus.SYNCED
         render(AttendanceHomeModel(
             AttendanceHomeState.SUCCESS,
@@ -265,6 +285,31 @@ class MainActivity : AppCompatActivity() {
         title = getString(R.string.ready_to_scan),
         instruction = getString(R.string.place_finger_on_sensor),
     )
+
+    private fun configureEmulatorControls() {
+        val controls = findViewById<View>(R.id.homeEmulatorControls)
+        controls.visibility = if (BuildConfig.FINGERPRINT_EMULATOR) View.VISIBLE else View.GONE
+        if (!BuildConfig.FINGERPRINT_EMULATOR) return
+        val selector = findViewById<Spinner>(R.id.homeEmulatorFinger)
+        val button = findViewById<Button>(R.id.homeEmulatorCapture)
+        button.isEnabled = false
+        Thread {
+            val employees = employeeDirectory.getAll().filter { it.active }
+            runOnUiThread {
+                emulatorEmployees = employees
+                selector.adapter = ArrayAdapter(this@MainActivity,
+                    android.R.layout.simple_spinner_dropdown_item,
+                    employees.map { "${it.displayName} (${it.employeeId})" })
+                button.isEnabled = employees.isNotEmpty()
+            }
+        }.apply { name = "emulator-employee-load" }.start()
+        button.setOnClickListener {
+            val employee = emulatorEmployees.getOrNull(selector.selectedItemPosition) ?: return@setOnClickListener
+            val generation = scanGeneration
+            Thread { handleSuccessfulIdentification(generation, employee) }
+                .apply { name = "emulator-attendance-scan" }.start()
+        }
+    }
 
     private fun updateClock() {
         val now = Date()

@@ -15,11 +15,11 @@ class AdminDashboardActivity : AppCompatActivity() {
         setContentView(R.layout.activity_admin_dashboard)
         KioskWindowInsets.apply(this, findViewById(R.id.adminDashboardRoot))
         findViewById<MaterialToolbar>(R.id.adminDashboardToolbar).setNavigationOnClickListener { finish() }
-        findViewById<Button>(R.id.registrationButton).setOnClickListener {
-            startActivity(Intent(this, FingerprintRegistrationActivity::class.java))
-        }
         findViewById<Button>(R.id.userManagementButton).setOnClickListener {
             startActivity(Intent(this, UserManagementActivity::class.java))
+        }
+        findViewById<Button>(R.id.fingerprintManagementButton).setOnClickListener {
+            startActivity(Intent(this, FingerprintManagementActivity::class.java))
         }
         findViewById<Button>(R.id.deviceSettingsButton).setOnClickListener {
             startActivity(Intent(this, DeviceSettingsActivity::class.java))
@@ -27,10 +27,8 @@ class AdminDashboardActivity : AppCompatActivity() {
         findViewById<Button>(R.id.diagnosticsButton).setOnClickListener {
             startActivity(Intent(this, DiagnosticsActivity::class.java))
         }
-        listOf(R.id.fingerprintManagementButton, R.id.syncStatusButton).forEach { id ->
-            findViewById<Button>(id).setOnClickListener {
-                Toast.makeText(this, R.string.backend_feature_placeholder, Toast.LENGTH_SHORT).show()
-            }
+        findViewById<Button>(R.id.syncStatusButton).setOnClickListener {
+            Toast.makeText(this, R.string.backend_feature_placeholder, Toast.LENGTH_SHORT).show()
         }
         findViewById<Button>(R.id.logoutButton).setOnClickListener {
             FirebaseAuth.getInstance().signOut()

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.os.Bundle
+import android.util.Log
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.LinearLayout
@@ -37,6 +38,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.UUID
 
 class FingerprintRegistrationActivity : AppCompatActivity() {
     private lateinit var visual: FingerprintVisualView
@@ -54,13 +56,18 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
     private var previewOnly = false
     private var running = false
     private var enrollmentSyncStarted = false
+    private var enrollmentSynced = false
+    private var lastEnrollmentId: String? = null
+    private var simulatedTemplateIds: List<String>? = null
     private val matcher by lazy { SourceAfisFingerprintMatcher() }
     private val database by lazy { BiometricDatabase.create(applicationContext) }
     private val repository by lazy { LocalBiometricRepository(database.biometricTemplateDao(), matcher.metadata) }
-    private val service by lazy { FingerprintEnrollmentService(Hfx05FingerprintScanner(), matcher, repository) }
+    private val scanner by lazy { Hfx05FingerprintScanner() }
+    private val service by lazy { FingerprintEnrollmentService(scanner, matcher, repository) }
     private val deviceConfiguration by lazy { DeviceConfigurationRepository(this) }
+    private val backendEnvironment by lazy { BackendEnvironmentConfig() }
     private val enrollmentApi by lazy {
-        FingerprintApiClient(BackendEnvironmentConfig()).create()
+        FingerprintApiClient(backendEnvironment).create()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -77,6 +84,7 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
         cancelButton = findViewById(R.id.registrationCancelButton)
         doneButton = findViewById(R.id.registrationDoneButton)
         fingerDropdown = findViewById(R.id.registrationFingerDropdown)
+        configureEmulatorControls()
         findViewById<MaterialToolbar>(R.id.registrationToolbar).setNavigationOnClickListener { finish() }
         configureFingerSelection()
         configureEmployee()
@@ -96,7 +104,10 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
         startButton.setOnClickListener { startEnrollment() }
         captureButton.setOnClickListener { captureNext() }
         cancelButton.setOnClickListener { render(service.cancel()) }
-        doneButton.setOnClickListener { finish() }
+        doneButton.setOnClickListener {
+            if (enrollmentSynced) finish()
+            else lastEnrollmentId?.let(::syncEnrollmentMetadata)
+        }
         updateProgress(0, 5)
         refreshControls()
     }
@@ -130,7 +141,7 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
             is EnrollmentResult.Success -> when (session?.state) {
                 EnrollmentState.COMPLETED -> {
                     visual.render(FingerprintVisualView.State.SUCCESS)
-                    progressText.setText(R.string.fingerprint_registered)
+                    progressText.setText(R.string.fingerprint_registered_syncing)
                     detailsText.text = getString(R.string.registration_complete_details,
                         employeeModel?.displayName ?: session.employeeId,
                         session.employeeId,
@@ -160,43 +171,89 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
 
     private fun syncEnrollmentMetadata(enrollmentId: String) {
         val employee = employeeModel ?: return
+        if (enrollmentSyncStarted || enrollmentSynced) return
+        lastEnrollmentId = enrollmentId
         enrollmentSyncStarted = true
+        progressText.setText(R.string.fingerprint_registered_syncing)
+        refreshControls()
         Thread {
-            val records = when (val result = repository.getByEnrollmentId(enrollmentId)) {
-                is RepositoryResult.Success -> result.value.sortedBy { it.templateSlot }
-                is RepositoryResult.Error -> emptyList()
+            val deviceId = deviceConfiguration.deviceId().trim()
+            val missingConfiguration = buildList {
+                if (backendEnvironment.baseUrl.isBlank()) add("base URL")
+                if (!backendEnvironment.apiKeyConfigured) add("API key")
+                if (deviceId.isBlank()) add("device ID")
             }
-            val synced = if (records.size == 5 && records.map { it.templateSlot } == (1..5).toList()) {
-                val first = records.first()
-                val metadata = first.template.metadata
+            if (missingConfiguration.isNotEmpty()) {
+                Log.e(LOG_TAG, "Enrollment sync configuration missing: ${missingConfiguration.joinToString()}; " +
+                    "enrollmentId=$enrollmentId employeeId=${employee.employeeId} deviceId=$deviceId")
+                finishEnrollmentSync(false)
+                return@Thread
+            }
+            val records = if (BuildConfig.FINGERPRINT_EMULATOR) emptyList() else when (val result = repository.getByEnrollmentId(enrollmentId)) {
+                is RepositoryResult.Success -> result.value.sortedBy { it.templateSlot }
+                is RepositoryResult.Error -> {
+                    Log.e(LOG_TAG, "Enrollment records unavailable; enrollmentId=$enrollmentId " +
+                        "employeeId=${employee.employeeId} deviceId=$deviceId details=${result.diagnosticDetails}", result.cause)
+                    emptyList()
+                }
+            }
+            val templateIds = simulatedTemplateIds
+            val validEnrollment = if (BuildConfig.FINGERPRINT_EMULATOR) templateIds?.size == 5
+                else records.size == 5 && records.map { it.templateSlot } == (1..5).toList()
+            val synced = if (validEnrollment) {
+                val first = records.firstOrNull()
+                val metadata = first?.template?.metadata ?: matcher.metadata
                 val enrolledAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US).apply {
                     timeZone = TimeZone.getTimeZone("UTC")
-                }.format(Date(first.createdAtEpochMillis))
-                runCatching {
+                }.format(Date(first?.createdAtEpochMillis ?: System.currentTimeMillis()))
+                try {
                     val response = enrollmentApi.recordEnrollment(RecordEnrollmentRequestDto(
                         enrollmentId = enrollmentId,
-                        deviceId = deviceConfiguration.deviceId(),
+                        deviceId = deviceId,
                         userId = employee.userId,
                         employeeId = employee.employeeId,
-                        fingerPosition = first.fingerPosition.persistedValue,
+                        fingerPosition = (first?.fingerPosition ?: selectedFinger).backendApiValue,
                         matcherEngine = metadata.engine,
                         matcherImplementationVersion = metadata.implementationVersion,
                         templateFormat = metadata.templateFormat,
                         templateFormatVersion = metadata.templateFormatVersion,
                         enrolledAtDevice = enrolledAt,
-                        templates = records.map { EnrollmentTemplateRecordDto(it.recordId, it.templateSlot) },
+                        templates = if (templateIds != null) templateIds.mapIndexed { index, id ->
+                            EnrollmentTemplateRecordDto(id, index + 1)
+                        } else records.map { EnrollmentTemplateRecordDto(it.recordId, it.templateSlot) },
                     )).execute()
-                    response.isSuccessful && response.body()?.let {
-                        it.enrollmentId == enrollmentId && it.status in setOf("RECORDED", "ALREADY_RECORDED")
-                    } == true
-                }.getOrDefault(false)
-            } else false
-            runOnUiThread {
-                if (isFinishing || isDestroyed) return@runOnUiThread
-                progressText.setText(if (synced) R.string.fingerprint_registered_synced
-                    else R.string.fingerprint_registered_sync_pending)
+                    Log.i(LOG_TAG, "Enrollment sync HTTP ${response.code()}; enrollmentId=$enrollmentId " +
+                        "employeeId=${employee.employeeId} deviceId=$deviceId")
+                    if (!response.isSuccessful) {
+                        Log.e(LOG_TAG, "Enrollment sync rejected; HTTP ${response.code()} " +
+                            "errorBody=${response.errorBody()?.string().orEmpty()} enrollmentId=$enrollmentId " +
+                            "employeeId=${employee.employeeId} deviceId=$deviceId")
+                    }
+                    val body = response.body()
+                    response.isSuccessful && body != null && body.success && body.enrollmentId == enrollmentId
+                } catch (error: Exception) {
+                    Log.e(LOG_TAG, "Enrollment sync exception ${error.javaClass.simpleName}: ${error.message}; " +
+                        "enrollmentId=$enrollmentId employeeId=${employee.employeeId} deviceId=$deviceId", error)
+                    false
+                }
+            } else {
+                Log.e(LOG_TAG, "Enrollment records incomplete; count=${records.size} enrollmentId=$enrollmentId " +
+                    "employeeId=${employee.employeeId} deviceId=$deviceId")
+                false
             }
+            finishEnrollmentSync(synced)
         }.apply { name = "fingerprint-enrollment-metadata-sync" }.start()
+    }
+
+    private fun finishEnrollmentSync(synced: Boolean) {
+        enrollmentSynced = synced
+        enrollmentSyncStarted = false
+        runOnUiThread {
+            if (isFinishing || isDestroyed) return@runOnUiThread
+            progressText.setText(if (synced) R.string.fingerprint_registered_synced
+                else R.string.fingerprint_registered_sync_failed)
+            refreshControls()
+        }
     }
 
     private fun renderProgress(progress: EnrollmentProgress) {
@@ -225,6 +282,18 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
     }
 
     private fun refreshControls() {
+        if (BuildConfig.FINGERPRINT_EMULATOR) {
+            startButton.visibility = View.GONE
+            captureButton.visibility = View.GONE
+            cancelButton.visibility = View.GONE
+            doneButton.visibility = if (lastEnrollmentId != null) View.VISIBLE else View.GONE
+            doneButton.isEnabled = !enrollmentSyncStarted
+            doneButton.setText(if (!enrollmentSynced && !enrollmentSyncStarted) R.string.retry_server_sync else R.string.done)
+            fingerDropdown.isEnabled = lastEnrollmentId == null && !enrollmentSyncStarted
+            findViewById<Button>(R.id.registrationEmulatorCapture).isEnabled =
+                employeeModel != null && lastEnrollmentId == null && !enrollmentSyncStarted
+            return
+        }
         val state = service.currentSession()?.state
         startButton.isEnabled = employeeModel != null && !previewOnly && !running && state !in setOf(EnrollmentState.READY, EnrollmentState.CAPTURING,
             EnrollmentState.PROCESSING, EnrollmentState.SAVING)
@@ -235,6 +304,9 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
         captureButton.visibility = if (state in setOf(EnrollmentState.READY, EnrollmentState.FAILED)) View.VISIBLE else View.GONE
         cancelButton.visibility = if (state in setOf(EnrollmentState.READY, EnrollmentState.FAILED)) View.VISIBLE else View.GONE
         doneButton.visibility = if (state == EnrollmentState.COMPLETED) View.VISIBLE else View.GONE
+        doneButton.isEnabled = state == EnrollmentState.COMPLETED && !enrollmentSyncStarted
+        doneButton.setText(if (state == EnrollmentState.COMPLETED && !enrollmentSynced && !enrollmentSyncStarted)
+            R.string.retry_server_sync else R.string.done)
         val selectionEnabled = employeeModel != null && !running &&
             state !in setOf(EnrollmentState.READY, EnrollmentState.CAPTURING,
                 EnrollmentState.PROCESSING, EnrollmentState.SAVING, EnrollmentState.FAILED, EnrollmentState.COMPLETED)
@@ -278,6 +350,21 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
         }
     }
 
+    private fun configureEmulatorControls() {
+        val controls = findViewById<View>(R.id.registrationEmulatorControls)
+        controls.visibility = if (BuildConfig.FINGERPRINT_EMULATOR) View.VISIBLE else View.GONE
+        if (!BuildConfig.FINGERPRINT_EMULATOR) return
+        findViewById<Button>(R.id.registrationEmulatorCapture).setOnClickListener {
+            val employee = employeeModel ?: return@setOnClickListener
+            val enrollmentId = UUID.randomUUID().toString()
+            simulatedTemplateIds = List(5) { UUID.randomUUID().toString() }
+            detailsText.text = getString(R.string.registration_complete_details, employee.displayName,
+                employee.employeeId, selectedFinger.displayName(this), 5)
+            visual.render(FingerprintVisualView.State.SUCCESS)
+            syncEnrollmentMetadata(enrollmentId)
+        }
+    }
+
     private fun isDebugBuild() = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
 
     private fun lowerLayerMessage(error: EnrollmentLowerLayerError?): String = when (error) {
@@ -288,6 +375,7 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val LOG_TAG = "FingerprintEnrollSync"
         const val EXTRA_EMPLOYEE_ID = "employeeId"
         const val EXTRA_EMPLOYEE_DISPLAY_NAME = "employeeDisplayName"
         const val EXTRA_USER_ID = "userId"

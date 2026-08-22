@@ -35,6 +35,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "FINGERPRINT_API_KEY", quotedBuildConfig(configuredValue("FINGERPRINT_API_KEY")))
         buildConfigField("String", "FINGERPRINT_DEVICE_ID", quotedBuildConfig(configuredValue("FINGERPRINT_DEVICE_ID")))
+        buildConfigField("boolean", "FINGERPRINT_EMULATOR",
+            configuredValue("FINGERPRINT_EMULATOR").toBooleanStrictOrNull()?.toString() ?: "false")
 
         externalNativeBuild {
             cmake {

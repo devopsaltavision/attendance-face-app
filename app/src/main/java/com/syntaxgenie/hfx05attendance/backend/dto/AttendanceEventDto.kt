@@ -25,7 +25,7 @@ data class RecordAttendanceResponseDto(
     val status: String,
     val attendanceRecordId: String?,
     val attendanceAction: String?,
-    val serverTimestamp: String,
+    val serverTimestamp: String? = null,
     val message: String? = null,
 )
 
