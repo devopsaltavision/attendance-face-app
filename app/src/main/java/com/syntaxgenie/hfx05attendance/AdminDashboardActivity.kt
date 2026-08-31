@@ -3,7 +3,6 @@ package com.syntaxgenie.hfx05attendance
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.firebase.auth.FirebaseAuth
@@ -26,9 +25,6 @@ class AdminDashboardActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.diagnosticsButton).setOnClickListener {
             startActivity(Intent(this, DiagnosticsActivity::class.java))
-        }
-        findViewById<Button>(R.id.syncStatusButton).setOnClickListener {
-            Toast.makeText(this, R.string.backend_feature_placeholder, Toast.LENGTH_SHORT).show()
         }
         findViewById<Button>(R.id.logoutButton).setOnClickListener {
             FirebaseAuth.getInstance().signOut()
