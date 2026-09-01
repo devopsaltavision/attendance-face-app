@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/faceCameraRoot" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
+    <com.google.android.material.appbar.MaterialToolbar android:id="@+id/faceCameraToolbar" android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize" android:background="@color/attendance_surface" app:navigationIcon="?attr/homeAsUpIndicator"
+        app:title="@string/face_camera_diagnostics_title" app:titleTextColor="@color/attendance_text" />
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="20dp">
+            <TextView android:id="@+id/detectedCameraText" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="18sp" android:textStyle="bold" />
+            <Button android:id="@+id/enumerateCamerasButton" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="12dp" android:text="@string/enumerate_cameras" />
+            <Button android:id="@+id/openCamera0Button" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="10dp" android:text="@string/open_camera_0" />
+            <Button android:id="@+id/openCamera1Button" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="10dp" android:text="@string/open_camera_1" />
+            <Button android:id="@+id/closeCameraButton" style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="10dp" android:enabled="false" android:text="@string/close_camera" />
+            <SurfaceView android:id="@+id/cameraPreview" android:layout_width="match_parent" android:layout_height="280dp" android:layout_marginTop="12dp" android:background="@android:color/black" />
+            <TextView android:id="@+id/frameMetadataText" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:fontFamily="monospace" android:text="No camera open." android:textIsSelectable="true" />
+            <TextView android:id="@+id/cameraReportText" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:fontFamily="monospace" android:textIsSelectable="true" android:textSize="11sp" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

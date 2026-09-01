@@ -1,4 +1,10 @@
 <resources>
+    <string name="face_camera_diagnostics">FACE CAMERA DIAGNOSTICS</string>
+    <string name="face_camera_diagnostics_title">Face Camera Diagnostics</string>
+    <string name="enumerate_cameras">Enumerate Cameras</string>
+    <string name="open_camera_0">Open Camera 0</string>
+    <string name="open_camera_1">Open Camera 1</string>
+    <string name="close_camera">Close Camera</string>
     <string name="app_name">SLH FP</string>
     <string name="attendance_title">Attendance</string>
     <string name="register_fingerprint">Register Fingerprint</string>

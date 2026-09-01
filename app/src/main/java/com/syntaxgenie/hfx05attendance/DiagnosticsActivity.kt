@@ -3,6 +3,7 @@ package com.syntaxgenie.hfx05attendance
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
@@ -15,6 +16,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.appbar.MaterialToolbar
 import com.syntaxgenie.hfx05attendance.fingerprint.LowLevelAccessProbe
+import com.syntaxgenie.hfx05attendance.face.camera.FaceCameraDiagnosticActivity
 import com.syntaxgenie.hfx05attendance.fingerprint.RawCaptureStorage
 import com.syntaxgenie.hfx05attendance.fingerprint.X05HardwareProbe
 import com.syntaxgenie.hfx05attendance.fingerprint.identification.IdentificationResult
@@ -88,6 +90,9 @@ class DiagnosticsActivity : AppCompatActivity() {
         }
         statusText.setText(R.string.diagnostics_ready)
         runButton.setOnClickListener { runFullDiagnostics() }
+        findViewById<Button>(R.id.faceCameraDiagnosticsButton).setOnClickListener {
+            startActivity(Intent(this, FaceCameraDiagnosticActivity::class.java))
+        }
         activeButton.setOnClickListener { confirmActiveProbe() }
         copyButton.setOnClickListener { copyReport() }
         captureButton.setOnClickListener { confirmCaptureTest() }
