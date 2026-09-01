@@ -58,9 +58,14 @@ class AdminLoginActivity : AppCompatActivity() {
             }
         }
         findViewById<Button>(R.id.debugAdminButton).apply {
-            visibility = if (BuildConfig.DEBUG) View.VISIBLE else View.GONE
-            if (BuildConfig.DEBUG) {
+            val showDebugAdminTools = BuildConfig.DEBUG && !BuildConfig.FINGERPRINT_GUIDE_MODE
+            visibility = if (showDebugAdminTools) View.VISIBLE else View.GONE
+            isClickable = showDebugAdminTools
+            isFocusable = showDebugAdminTools
+            if (showDebugAdminTools) {
                 setOnClickListener { startActivity(Intent(this@AdminLoginActivity, AdminDashboardActivity::class.java)) }
+            } else {
+                setOnClickListener(null)
             }
         }
     }

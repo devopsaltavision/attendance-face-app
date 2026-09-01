@@ -95,18 +95,20 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
             finish()
         }
         findViewById<Button>(R.id.debugPreviewRegistrationButton).apply {
-            visibility = if (isDebugBuild() && employeeModel == null) View.VISIBLE else View.GONE
+            visibility = if (!BuildConfig.FINGERPRINT_GUIDE_MODE && isDebugBuild() && employeeModel == null) View.VISIBLE else View.GONE
             setOnClickListener {
                 startActivity(createPreviewIntent(this@FingerprintRegistrationActivity))
                 finish()
             }
         }
-        startButton.setOnClickListener { startEnrollment() }
-        captureButton.setOnClickListener { captureNext() }
-        cancelButton.setOnClickListener { render(service.cancel()) }
-        doneButton.setOnClickListener {
-            if (enrollmentSynced) finish()
-            else lastEnrollmentId?.let(::syncEnrollmentMetadata)
+        if (!BuildConfig.FINGERPRINT_GUIDE_MODE) {
+            startButton.setOnClickListener { startEnrollment() }
+            captureButton.setOnClickListener { captureNext() }
+            cancelButton.setOnClickListener { render(service.cancel()) }
+            doneButton.setOnClickListener {
+                if (enrollmentSynced) finish()
+                else lastEnrollmentId?.let(::syncEnrollmentMetadata)
+            }
         }
         updateProgress(0, 5)
         refreshControls()
@@ -282,6 +284,15 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
     }
 
     private fun refreshControls() {
+        if (BuildConfig.FINGERPRINT_GUIDE_MODE) {
+            startButton.visibility = View.VISIBLE
+            startButton.isEnabled = employeeModel != null
+            captureButton.visibility = View.GONE
+            cancelButton.visibility = View.GONE
+            doneButton.visibility = View.GONE
+            fingerDropdown.isEnabled = employeeModel != null
+            return
+        }
         if (BuildConfig.FINGERPRINT_EMULATOR) {
             startButton.visibility = View.GONE
             captureButton.visibility = View.GONE
@@ -314,7 +325,8 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
     }
 
     private fun configureEmployee() {
-        previewOnly = isDebugBuild() && intent.getBooleanExtra(EXTRA_PREVIEW_ONLY, false)
+        previewOnly = !BuildConfig.FINGERPRINT_GUIDE_MODE && isDebugBuild() &&
+            intent.getBooleanExtra(EXTRA_PREVIEW_ONLY, false)
         employeeModel = RegistrationEmployeeUiModel.from(
             intent.getStringExtra(EXTRA_EMPLOYEE_ID),
             intent.getStringExtra(EXTRA_EMPLOYEE_DISPLAY_NAME),
@@ -328,7 +340,8 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.selectedEmployeeName).text = employee.displayName
             findViewById<TextView>(R.id.selectedEmployeeId).text = employee.employeeId
             findViewById<TextView>(R.id.selectedEmployeeUserId).text = getString(R.string.employee_epf, employee.userId)
-            findViewById<View>(R.id.debugPreviewLabel).visibility = if (previewOnly) View.VISIBLE else View.GONE
+            findViewById<View>(R.id.debugPreviewLabel).visibility =
+                if (!BuildConfig.FINGERPRINT_GUIDE_MODE && previewOnly) View.VISIBLE else View.GONE
         } ?: run {
             content.visibility = View.GONE
             missing.visibility = View.VISIBLE
@@ -352,8 +365,9 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
 
     private fun configureEmulatorControls() {
         val controls = findViewById<View>(R.id.registrationEmulatorControls)
-        controls.visibility = if (BuildConfig.FINGERPRINT_EMULATOR) View.VISIBLE else View.GONE
-        if (!BuildConfig.FINGERPRINT_EMULATOR) return
+        val emulatorEnabled = BuildConfig.FINGERPRINT_EMULATOR && !BuildConfig.FINGERPRINT_GUIDE_MODE
+        controls.visibility = if (emulatorEnabled) View.VISIBLE else View.GONE
+        if (!emulatorEnabled) return
         findViewById<Button>(R.id.registrationEmulatorCapture).setOnClickListener {
             val employee = employeeModel ?: return@setOnClickListener
             val enrollmentId = UUID.randomUUID().toString()

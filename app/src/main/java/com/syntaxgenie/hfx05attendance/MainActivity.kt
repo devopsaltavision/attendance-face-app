@@ -128,7 +128,7 @@ class MainActivity : AppCompatActivity() {
         scanActive = true
         scanGeneration++
         render(defaultReadyModel())
-        if (!BuildConfig.FINGERPRINT_EMULATOR) startScanWorker()
+        if (!BuildConfig.FINGERPRINT_EMULATOR && !BuildConfig.FINGERPRINT_GUIDE_MODE) startScanWorker()
     }
 
     override fun onStop() {
@@ -140,7 +140,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startScanWorker() {
-        if (BuildConfig.FINGERPRINT_EMULATOR || !scanActive || !scanWorkerRunning.compareAndSet(false, true)) return
+        if (BuildConfig.FINGERPRINT_EMULATOR || BuildConfig.FINGERPRINT_GUIDE_MODE ||
+            !scanActive || !scanWorkerRunning.compareAndSet(false, true)) return
         val generation = scanGeneration
         Thread {
             try {
@@ -288,8 +289,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun configureEmulatorControls() {
         val controls = findViewById<View>(R.id.homeEmulatorControls)
-        controls.visibility = if (BuildConfig.FINGERPRINT_EMULATOR) View.VISIBLE else View.GONE
-        if (!BuildConfig.FINGERPRINT_EMULATOR) return
+        val emulatorEnabled = BuildConfig.FINGERPRINT_EMULATOR && !BuildConfig.FINGERPRINT_GUIDE_MODE
+        controls.visibility = if (emulatorEnabled) View.VISIBLE else View.GONE
+        if (!emulatorEnabled) return
         val selector = findViewById<Spinner>(R.id.homeEmulatorFinger)
         val button = findViewById<Button>(R.id.homeEmulatorCapture)
         button.isEnabled = false

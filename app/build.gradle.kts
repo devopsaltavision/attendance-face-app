@@ -37,6 +37,8 @@ android {
         buildConfigField("String", "FINGERPRINT_DEVICE_ID", quotedBuildConfig(configuredValue("FINGERPRINT_DEVICE_ID")))
         buildConfigField("boolean", "FINGERPRINT_EMULATOR",
             configuredValue("FINGERPRINT_EMULATOR").toBooleanStrictOrNull()?.toString() ?: "false")
+        buildConfigField("boolean", "FINGERPRINT_GUIDE_MODE",
+            configuredValue("FINGERPRINT_GUIDE_MODE").toBooleanStrictOrNull()?.toString() ?: "false")
 
         externalNativeBuild {
             cmake {
