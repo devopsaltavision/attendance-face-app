@@ -13,6 +13,14 @@
             <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="20dp" android:text="@string/api_credential" android:textColor="@color/attendance_text_secondary" />
             <TextView android:id="@+id/apiCredentialStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
             <com.google.android.material.button.MaterialButton android:id="@+id/saveDeviceIdButton" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="28dp" android:text="@string/save_device_id" />
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="32dp" android:text="@string/application_update" android:textAppearance="@style/TextAppearance.Material3.TitleLarge" />
+            <TextView android:id="@+id/installedVersionValue" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:textColor="@color/attendance_text_secondary" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/checkForUpdateButton" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="16dp" android:text="@string/check_for_update" />
+            <TextView android:id="@+id/updateStatusValue" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:textColor="@color/attendance_text" android:visibility="gone" />
+            <TextView android:id="@+id/latestVersionValue" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:textAppearance="@style/TextAppearance.Material3.TitleMedium" android:visibility="gone" />
+            <TextView android:id="@+id/releaseNotesValue" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:textColor="@color/attendance_text_secondary" android:visibility="gone" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/downloadUpdateButton" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="16dp" android:text="@string/download_update" android:visibility="gone" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/installUpdateButton" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="12dp" android:layout_marginBottom="24dp" android:text="@string/install_update" android:visibility="gone" />
         </LinearLayout>
     </ScrollView>
 </LinearLayout>

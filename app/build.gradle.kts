@@ -29,8 +29,8 @@ android {
         applicationId = "com.syntaxgenie.hfx05attendance"
         minSdk = 23
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "FINGERPRINT_API_KEY", quotedBuildConfig(configuredValue("FINGERPRINT_API_KEY")))
@@ -91,6 +91,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
+    implementation(libs.firebase.storage)
     annotationProcessor(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.okhttp.mockwebserver)
