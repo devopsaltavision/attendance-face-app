@@ -18,7 +18,16 @@
                 android:layout_height="wrap_content" android:orientation="vertical" />
         </LinearLayout>
     </ScrollView>
-    <com.google.android.material.button.MaterialButton android:id="@+id/clearAllLocalFingerprints"
-        style="@style/Widget.Material3.Button.OutlinedButton" android:layout_width="match_parent"
-        android:layout_height="56dp" android:layout_margin="18dp" android:text="@string/clear_all_local_fingerprints" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="18dp">
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="@string/fingerprint_synchronization" android:textColor="@color/attendance_text"
+            android:textSize="18sp" android:textStyle="bold" />
+        <com.google.android.material.button.MaterialButton android:id="@+id/syncFingerprints"
+            android:layout_width="match_parent" android:layout_height="56dp"
+            android:layout_marginTop="12dp" android:text="@string/sync_now" />
+        <TextView android:id="@+id/fingerprintSyncStatus" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="8dp"
+            android:textColor="@color/attendance_text_secondary" android:visibility="gone" />
+    </LinearLayout>
 </LinearLayout>

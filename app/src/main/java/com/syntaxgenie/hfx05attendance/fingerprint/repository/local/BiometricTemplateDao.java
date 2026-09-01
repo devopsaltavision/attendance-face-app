@@ -20,6 +20,11 @@ public interface BiometricTemplateDao {
         insertAll(entities);
     }
 
+    @Transaction
+    default void insertMissingEnrollments(List<BiometricTemplateEntity> entities) {
+        insertAll(entities);
+    }
+
     @Query("SELECT * FROM biometric_templates WHERE employee_id = :employeeId " +
             "ORDER BY finger_position, template_slot")
     List<BiometricTemplateEntity> getByEmployee(String employeeId);

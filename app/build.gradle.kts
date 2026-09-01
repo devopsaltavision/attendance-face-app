@@ -35,6 +35,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "FINGERPRINT_API_KEY", quotedBuildConfig(configuredValue("FINGERPRINT_API_KEY")))
         buildConfigField("String", "FINGERPRINT_DEVICE_ID", quotedBuildConfig(configuredValue("FINGERPRINT_DEVICE_ID")))
+        buildConfigField("String", "FINGERPRINT_BACKUP_KEY_BASE64",
+            quotedBuildConfig(configuredValue("FINGERPRINT_BACKUP_KEY_BASE64")))
         buildConfigField("boolean", "FINGERPRINT_EMULATOR",
             configuredValue("FINGERPRINT_EMULATOR").toBooleanStrictOrNull()?.toString() ?: "false")
         buildConfigField("boolean", "FINGERPRINT_GUIDE_MODE",

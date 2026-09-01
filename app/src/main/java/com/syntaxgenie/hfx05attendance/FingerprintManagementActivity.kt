@@ -7,6 +7,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.google.firebase.auth.FirebaseAuth
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -14,6 +15,8 @@ import com.syntaxgenie.hfx05attendance.employee.EmployeeRecord
 import com.syntaxgenie.hfx05attendance.employee.local.EmployeeDirectoryDatabase
 import com.syntaxgenie.hfx05attendance.employee.local.LocalEmployeeDirectory
 import com.syntaxgenie.hfx05attendance.fingerprint.matcher.sourceafis.SourceAfisFingerprintMatcher
+import com.syntaxgenie.hfx05attendance.fingerprint.backup.FingerprintBackupService
+import com.syntaxgenie.hfx05attendance.fingerprint.backup.FingerprintSynchronizationConflict
 import com.syntaxgenie.hfx05attendance.fingerprint.repository.BiometricRecord
 import com.syntaxgenie.hfx05attendance.fingerprint.repository.RepositoryResult
 import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.BiometricDatabase
@@ -24,13 +27,18 @@ import com.syntaxgenie.hfx05attendance.ui.displayName
 class FingerprintManagementActivity : AppCompatActivity() {
     private lateinit var rows: LinearLayout
     private lateinit var empty: TextView
-    private lateinit var clearAll: Button
+    private lateinit var syncButton: Button
+    private lateinit var syncStatus: TextView
+    private var syncRunning = false
     private val matcher by lazy { SourceAfisFingerprintMatcher() }
     private val repository by lazy {
         LocalBiometricRepository(BiometricDatabase.create(applicationContext).biometricTemplateDao(), matcher.metadata)
     }
     private val employeeDirectory by lazy {
         LocalEmployeeDirectory(EmployeeDirectoryDatabase.create(applicationContext).employeeDao())
+    }
+    private val backupService by lazy {
+        FingerprintBackupService(applicationContext, repository, matcher.metadata)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,9 +48,11 @@ class FingerprintManagementActivity : AppCompatActivity() {
         findViewById<MaterialToolbar>(R.id.fingerprintManagementToolbar).setNavigationOnClickListener { finish() }
         rows = findViewById(R.id.localEnrollmentRows)
         empty = findViewById(R.id.localEnrollmentsEmpty)
-        clearAll = findViewById(R.id.clearAllLocalFingerprints)
-        clearAll.setOnClickListener { confirmClearAll() }
+        syncButton = findViewById(R.id.syncFingerprints)
+        syncStatus = findViewById(R.id.fingerprintSyncStatus)
+        syncButton.setOnClickListener { synchronizeFingerprints() }
         loadEnrollments()
+        if (FirebaseAuth.getInstance().currentUser != null) synchronizeFingerprints()
     }
 
     private fun loadEnrollments() {
@@ -61,7 +71,6 @@ class FingerprintManagementActivity : AppCompatActivity() {
     private fun render(enrollments: Map<String, List<BiometricRecord>>, employees: Map<String, EmployeeRecord>) {
         rows.removeAllViews()
         empty.visibility = if (enrollments.isEmpty()) View.VISIBLE else View.GONE
-        clearAll.isEnabled = enrollments.isNotEmpty()
         enrollments.values.sortedBy { it.first().employeeId }.forEach { records ->
             val first = records.first()
             val employee = employees[first.employeeId]
@@ -95,26 +104,46 @@ class FingerprintManagementActivity : AppCompatActivity() {
     private fun confirmDelete(enrollmentId: String) {
         MaterialAlertDialogBuilder(this).setMessage(R.string.confirm_delete_local_enrollment)
             .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(R.string.delete) { _, _ -> delete { repository.deleteByEnrollmentId(enrollmentId) } }
+            .setPositiveButton(R.string.delete) { _, _ -> deleteEnrollment(enrollmentId) }
             .show()
     }
 
-    private fun confirmClearAll() {
-        MaterialAlertDialogBuilder(this).setMessage(R.string.confirm_clear_local_fingerprints)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(R.string.delete_all) { _, _ -> delete(repository::deleteAll) }
-            .show()
-    }
-
-    private fun delete(action: () -> RepositoryResult<Int>) {
-        Thread {
-            val result = action()
+    private fun deleteEnrollment(enrollmentId: String) {
+        if (syncRunning) return
+        setSyncBusy(true, R.string.fingerprint_deletion_running)
+        backupService.deleteEnrollment(enrollmentId) { result ->
             runOnUiThread {
-                if (result is RepositoryResult.Error) {
-                    Toast.makeText(this, result.error.userMessage, Toast.LENGTH_LONG).show()
-                }
-                loadEnrollments()
+                setSyncBusy(false, if (result.isSuccess) R.string.fingerprint_deletion_completed
+                    else R.string.fingerprint_deletion_failed)
+                if (result.isSuccess) loadEnrollments()
+                else Toast.makeText(this, result.exceptionOrNull()?.message
+                    ?: getString(R.string.fingerprint_deletion_failed), Toast.LENGTH_LONG).show()
             }
-        }.apply { name = "local-fingerprint-delete" }.start()
+        }
+    }
+
+    private fun synchronizeFingerprints() {
+        if (syncRunning) return
+        setSyncBusy(true, R.string.fingerprint_sync_running)
+        backupService.synchronize { result ->
+            runOnUiThread {
+                val message = when {
+                    result.isSuccess -> R.string.fingerprint_sync_completed
+                    result.exceptionOrNull() is FingerprintSynchronizationConflict -> R.string.fingerprint_sync_conflict
+                    else -> R.string.fingerprint_sync_failed
+                }
+                setSyncBusy(false, message)
+                if (result.isSuccess) loadEnrollments()
+                else Toast.makeText(this, result.exceptionOrNull()?.message
+                    ?: getString(message), Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun setSyncBusy(busy: Boolean, message: Int) {
+        syncRunning = busy
+        syncButton.isEnabled = !busy
+        syncStatus.setText(message)
+        syncStatus.visibility = View.VISIBLE
     }
 }

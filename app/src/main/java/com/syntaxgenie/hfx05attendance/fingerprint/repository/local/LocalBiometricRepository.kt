@@ -121,6 +121,21 @@ class LocalBiometricRepository(
 
     fun deleteAll(): RepositoryResult<Int> = delete("deleteAll", dao::deleteAll)
 
+    fun insertMissingEnrollments(
+        records: List<BiometricRecord>,
+    ): RepositoryResult<List<BiometricRecord>> = timed("insertMissingEnrollments") {
+        val validationError = validateEnrollmentSet(records)
+        if (validationError != null) return@timed validationError
+        val incompatible = records.firstOrNull { it.template.metadata != activeMatcherMetadata }
+        if (incompatible != null) return@timed incompatible(incompatible.template.metadata)
+        try {
+            dao.insertMissingEnrollments(records.map(BiometricRecordMapper::toEntity))
+            RepositoryResult.Success(records.toList())
+        } catch (error: Exception) {
+            failure(RepositoryError.TEMPLATE_SAVE_FAILED, "Atomic Room synchronization insert failed.", error)
+        }
+    }
+
     override fun diagnostics(): BiometricRepositorySnapshot = snapshot
 
     private fun validateEnrollment(records: List<BiometricRecord>): RepositoryResult.Error? {
@@ -143,6 +158,20 @@ class LocalBiometricRepository(
             return invalidEnrollment("An enrollment batch must share exactly one enrollment ID.")
         }
         return null
+    }
+
+    private fun validateEnrollmentSet(records: List<BiometricRecord>): RepositoryResult.Error? {
+        if (records.isEmpty()) return invalidEnrollment("Synchronization must contain biometric records.")
+        if (records.map { it.recordId }.distinct().size != records.size) {
+            return invalidEnrollment("Synchronization must contain unique record IDs.")
+        }
+        if (records.map { it.enrollmentId to it.templateSlot }.distinct().size != records.size) {
+            return invalidEnrollment("Synchronization contains duplicate enrollment template slots.")
+        }
+        if (records.map { Triple(it.employeeId, it.fingerPosition, it.templateSlot) }.distinct().size != records.size) {
+            return invalidEnrollment("Synchronization contains conflicting employee template slots.")
+        }
+        return records.groupBy { it.enrollmentId }.values.firstNotNullOfOrNull(::validateEnrollment)
     }
 
     private fun invalidEnrollment(details: String) = RepositoryResult.Error(

@@ -9,6 +9,7 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.appbar.MaterialToolbar
@@ -19,6 +20,7 @@ import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentRequest
 import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentResult
 import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentState
 import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.FingerprintEnrollmentService
+import com.syntaxgenie.hfx05attendance.fingerprint.backup.FingerprintBackupService
 import com.syntaxgenie.hfx05attendance.fingerprint.matcher.sourceafis.SourceAfisFingerprintMatcher
 import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.BiometricDatabase
 import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.LocalBiometricRepository
@@ -57,6 +59,7 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
     private var running = false
     private var enrollmentSyncStarted = false
     private var enrollmentSynced = false
+    private var fingerprintStorageSyncStarted = false
     private var lastEnrollmentId: String? = null
     private var simulatedTemplateIds: List<String>? = null
     private val matcher by lazy { SourceAfisFingerprintMatcher() }
@@ -64,6 +67,9 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
     private val repository by lazy { LocalBiometricRepository(database.biometricTemplateDao(), matcher.metadata) }
     private val scanner by lazy { Hfx05FingerprintScanner() }
     private val service by lazy { FingerprintEnrollmentService(scanner, matcher, repository) }
+    private val fingerprintBackupService by lazy {
+        FingerprintBackupService(applicationContext, repository, matcher.metadata)
+    }
     private val deviceConfiguration by lazy { DeviceConfigurationRepository(this) }
     private val backendEnvironment by lazy { BackendEnvironmentConfig() }
     private val enrollmentApi by lazy {
@@ -149,6 +155,7 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
                         session.employeeId,
                         session.fingerPosition.displayName(this),
                         session.completedCaptures)
+                    if (!fingerprintStorageSyncStarted) synchronizeFingerprintStorage()
                     if (!enrollmentSyncStarted) syncEnrollmentMetadata(session.enrollmentId)
                 }
                 EnrollmentState.CANCELLED -> {
@@ -245,6 +252,19 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
             }
             finishEnrollmentSync(synced)
         }.apply { name = "fingerprint-enrollment-metadata-sync" }.start()
+    }
+
+    private fun synchronizeFingerprintStorage() {
+        fingerprintStorageSyncStarted = true
+        fingerprintBackupService.synchronize { result ->
+            if (result.isFailure) runOnUiThread {
+                if (!isFinishing && !isDestroyed) Toast.makeText(
+                    this,
+                    R.string.fingerprint_sync_pending,
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
     }
 
     private fun finishEnrollmentSync(synced: Boolean) {
