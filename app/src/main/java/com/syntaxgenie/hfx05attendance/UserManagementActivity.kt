@@ -24,7 +24,14 @@ import com.syntaxgenie.hfx05attendance.employee.EmployeeRecord
 import com.syntaxgenie.hfx05attendance.employee.EmployeeSyncService
 import com.syntaxgenie.hfx05attendance.employee.local.EmployeeDirectoryDatabase
 import com.syntaxgenie.hfx05attendance.employee.local.LocalEmployeeDirectory
+import com.syntaxgenie.hfx05attendance.fingerprint.matcher.sourceafis.SourceAfisFingerprintMatcher
+import com.syntaxgenie.hfx05attendance.fingerprint.repository.BiometricRecord
+import com.syntaxgenie.hfx05attendance.fingerprint.repository.RepositoryResult
+import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.BiometricDatabase
+import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.LocalBiometricRepository
 import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
+import com.syntaxgenie.hfx05attendance.ui.displayName
+import java.util.Locale
 
 class UserManagementActivity : AppCompatActivity() {
     private lateinit var rows: LinearLayout
@@ -34,10 +41,19 @@ class UserManagementActivity : AppCompatActivity() {
     private lateinit var refreshButton: MaterialButton
     private var allUsers: List<EmployeeRecord> = emptyList()
     private var displayedUsers: List<EmployeeRecord> = emptyList()
+    private var enrollmentsByEmployee: Map<String, List<List<BiometricRecord>>> = emptyMap()
+    private var employeesWithAnyLocalRecords: Set<String> = emptySet()
+    private var biometricLookupAvailable = false
     private var refreshing = false
     private val database by lazy { EmployeeDirectoryDatabase.create(applicationContext) }
     private val directory by lazy { LocalEmployeeDirectory(database.employeeDao()) }
     private val deviceConfiguration by lazy { DeviceConfigurationRepository(this) }
+    private val biometricMatcher by lazy { SourceAfisFingerprintMatcher() }
+    private val biometricRepository by lazy {
+        LocalBiometricRepository(BiometricDatabase.create(applicationContext).biometricTemplateDao(),
+            biometricMatcher.metadata)
+    }
+    private val deletionStore by lazy { ExplicitFingerprintDeletionStore(this) }
     private val syncService by lazy {
         val environment = BackendEnvironmentConfig()
         EmployeeSyncService(FingerprintApiClient(environment).create(), environment,
@@ -62,14 +78,31 @@ class UserManagementActivity : AppCompatActivity() {
             }
             override fun afterTextChanged(s: Editable?) = Unit
         })
+    }
+
+    override fun onResume() {
+        super.onResume()
         loadLocalUsers()
     }
 
     private fun loadLocalUsers() {
         Thread {
             val users = directory.getAll()
+            val biometricResult = biometricRepository.getAll()
+            val localEnrollments = if (biometricResult is RepositoryResult.Success) {
+                biometricResult.value.groupBy { it.enrollmentId }.values
+                    .filter(::isCompleteEnrollment)
+                    .groupBy { employeeKey(it.first().employeeId) }
+            } else emptyMap()
             runOnUiThread {
                 allUsers = users
+                enrollmentsByEmployee = localEnrollments
+                employeesWithAnyLocalRecords = if (biometricResult is RepositoryResult.Success) {
+                    biometricResult.value.map { employeeKey(it.employeeId) }.toSet()
+                } else emptySet()
+                biometricLookupAvailable = biometricResult is RepositoryResult.Success
+                if (!biometricLookupAvailable) Toast.makeText(this,
+                    R.string.local_fingerprint_status_unavailable, Toast.LENGTH_LONG).show()
                 filterUsers(searchInput.text?.toString().orEmpty())
             }
         }.apply { name = "employee-directory-read" }.start()
@@ -114,32 +147,92 @@ class UserManagementActivity : AppCompatActivity() {
         rows.removeAllViews()
         empty.visibility = if (users.isEmpty()) View.VISIBLE else View.GONE
         if (users.isEmpty()) rows.addView(empty)
-        users.forEach { employee -> rows.addView(employeeCard(employee)) }
+        users.forEach { employee -> rows.addView(employeeCard(employee, fingerprintState(employee))) }
     }
 
-    private fun employeeCard(employee: EmployeeRecord): View {
+    private fun employeeCard(employee: EmployeeRecord, fingerprintState: EmployeeFingerprintState): View {
         val card = MaterialCardView(this).apply {
             radius = resources.getDimension(R.dimen.employee_card_radius)
             setCardBackgroundColor(getColor(R.color.attendance_surface))
-            isClickable = true; isFocusable = true
-            setOnClickListener {
-                if (!employee.active) Toast.makeText(this@UserManagementActivity,
-                    R.string.employee_inactive, Toast.LENGTH_SHORT).show()
-                else startActivity(FingerprintRegistrationActivity.createIntent(this@UserManagementActivity,
-                    employee.userId, employee.employeeId, employee.displayName))
-            }
         }
-        val text = TextView(this).apply {
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             setPadding(40, 30, 40, 30)
-            text = getString(R.string.employee_row, employee.displayName, employee.employeeId, employee.userId,
-                getString(if (employee.active) R.string.active else R.string.inactive),
-                getString(if (employee.fingerprintEnrolled) R.string.fingerprint_enrolled else R.string.fingerprint_not_enrolled))
-            setTextColor(getColor(R.color.attendance_text)); textSize = 16f
         }
-        card.addView(text)
+        content.addView(TextView(this).apply {
+            text = getString(R.string.employee_identity, employee.displayName, employee.employeeId,
+                getString(if (employee.active) R.string.active else R.string.inactive))
+            setTextColor(getColor(R.color.attendance_text)); textSize = 16f
+        })
+        content.addView(TextView(this).apply {
+            text = when (fingerprintState) {
+                EmployeeFingerprintState.NotRegistered -> getString(R.string.employee_fingerprint_not_registered)
+                EmployeeFingerprintState.SyncRequired -> getString(R.string.employee_fingerprint_sync_required)
+                is EmployeeFingerprintState.Registered -> getString(
+                    if (fingerprintState.fingers.size == 1) R.string.employee_fingerprint_registered_one
+                    else R.string.employee_fingerprint_registered_many,
+                    fingerprintState.fingers.joinToString(", "),
+                )
+            }
+            setPadding(0, 16, 0, 12)
+        })
+        content.addView(MaterialButton(this).apply {
+            when (fingerprintState) {
+                EmployeeFingerprintState.NotRegistered -> {
+                    setText(R.string.register_fingerprint_action)
+                    isEnabled = employee.active
+                    setOnClickListener {
+                        if (!employee.active) Toast.makeText(this@UserManagementActivity,
+                            R.string.employee_inactive, Toast.LENGTH_SHORT).show()
+                        else startActivity(FingerprintRegistrationActivity.createIntent(this@UserManagementActivity,
+                            employee.userId, employee.employeeId, employee.displayName))
+                    }
+                }
+                EmployeeFingerprintState.SyncRequired -> {
+                    setText(R.string.sync_view_fingerprint_action)
+                    setOnClickListener { openFingerprintManagement(employee.employeeId) }
+                }
+                is EmployeeFingerprintState.Registered -> {
+                    setText(R.string.view_fingerprint_action)
+                    setOnClickListener { openFingerprintManagement(employee.employeeId) }
+                }
+            }
+        })
+        card.addView(content)
         card.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 20 }
         return card
+    }
+
+    private fun fingerprintState(employee: EmployeeRecord): EmployeeFingerprintState {
+        val local = enrollmentsByEmployee[employeeKey(employee.employeeId)].orEmpty()
+        if (local.isNotEmpty()) {
+            val fingers = local.map { it.first().fingerPosition.displayName(this) }.distinct()
+            return EmployeeFingerprintState.Registered(fingers)
+        }
+        val backendReportsEnrollment = employee.fingerprintEnrolled || !employee.fingerprintEnrollmentId.isNullOrBlank()
+        val explicitlyDeleted = deletionStore.matches(employee.employeeId, employee.fingerprintEnrollmentId)
+        return if (!biometricLookupAvailable || employeeKey(employee.employeeId) in employeesWithAnyLocalRecords ||
+            backendReportsEnrollment && !explicitlyDeleted) {
+            EmployeeFingerprintState.SyncRequired
+        } else EmployeeFingerprintState.NotRegistered
+    }
+
+    private fun openFingerprintManagement(employeeId: String) {
+        startActivity(FingerprintManagementActivity.createIntent(this, employeeId))
+    }
+
+    private fun isCompleteEnrollment(records: List<BiometricRecord>): Boolean =
+        records.size == 5 && records.map { it.templateSlot }.toSet() == (1..5).toSet() &&
+            records.map { employeeKey(it.employeeId) }.distinct().size == 1 &&
+            records.map { it.fingerPosition }.distinct().size == 1
+
+    private fun employeeKey(employeeId: String) = employeeId.lowercase(Locale.ROOT)
+
+    private sealed class EmployeeFingerprintState {
+        object NotRegistered : EmployeeFingerprintState()
+        object SyncRequired : EmployeeFingerprintState()
+        data class Registered(val fingers: List<String>) : EmployeeFingerprintState()
     }
 
     private fun setBusy(busy: Boolean) {

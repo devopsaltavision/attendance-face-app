@@ -15,6 +15,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentLowerLayerError
+import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentError
 import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentProgress
 import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentRequest
 import com.syntaxgenie.hfx05attendance.fingerprint.enrollment.EnrollmentResult
@@ -123,7 +124,17 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
     private fun startEnrollment() {
         val employee = employeeModel ?: return
         runEnrollmentOperation("fingerprint-enrollment-start") {
-            service.start(EnrollmentRequest(employee.employeeId, selectedFinger))
+            when (val existing = repository.getByEmployee(employee.employeeId)) {
+                is RepositoryResult.Success -> if (existing.value.isNotEmpty()) {
+                    EnrollmentResult.Error(EnrollmentError.ENROLLMENT_ALREADY_EXISTS)
+                } else service.start(EnrollmentRequest(employee.employeeId, selectedFinger))
+                is RepositoryResult.Error -> EnrollmentResult.Error(
+                    EnrollmentError.TEMPLATE_STORAGE_FAILED,
+                    diagnosticDetails = existing.diagnosticDetails,
+                    cause = existing.cause,
+                    lowerLayerError = EnrollmentLowerLayerError.Repository(existing),
+                )
+            }
         }
     }
 
@@ -148,6 +159,7 @@ class FingerprintRegistrationActivity : AppCompatActivity() {
         when (result) {
             is EnrollmentResult.Success -> when (session?.state) {
                 EnrollmentState.COMPLETED -> {
+                    ExplicitFingerprintDeletionStore(this).clear(session.employeeId)
                     visual.render(FingerprintVisualView.State.SUCCESS)
                     progressText.setText(R.string.fingerprint_registered_syncing)
                     detailsText.text = getString(R.string.registration_complete_details,
