@@ -52,3 +52,28 @@ app/google-services.json
 docs/user-guide
 
 latest.json
+
+.tmp
+
+# Android package/install artifacts
+*.idsig
+*.apks
+
+# Additional signing/private-key formats
+*.p12
+*.pfx
+*.key
+*.pem
+
+# Firebase/server-side credentials - never commit
+**/service-account*.json
+**/*firebase-adminsdk*.json
+
+# Local Codex / temporary task output
+.codex/tmp/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+app/src/main/assets/face_models/glintr100.onnx

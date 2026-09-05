@@ -1,4 +1,5 @@
 package com.syntaxgenie.hfx05attendance
+import android.content.Intent
 
 import android.content.pm.ApplicationInfo
 import android.content.Context
@@ -31,6 +32,9 @@ import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.BiometricDat
 import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.LocalBiometricRepository
 import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
 import com.syntaxgenie.hfx05attendance.ui.displayName
+import com.syntaxgenie.hfx05attendance.face.repository.*
+import com.syntaxgenie.hfx05attendance.face.repository.local.*
+import com.syntaxgenie.hfx05attendance.face.index.FaceTemplateIndexManager
 import java.util.Locale
 
 class UserManagementActivity : AppCompatActivity() {
@@ -44,6 +48,7 @@ class UserManagementActivity : AppCompatActivity() {
     private var enrollmentsByEmployee: Map<String, List<List<BiometricRecord>>> = emptyMap()
     private var employeesWithAnyLocalRecords: Set<String> = emptySet()
     private var biometricLookupAvailable = false
+    private var faceRecordsByEmployee: Map<String, List<FaceEnrollmentRecord>> = emptyMap()
     private var refreshing = false
     private val database by lazy { EmployeeDirectoryDatabase.create(applicationContext) }
     private val directory by lazy { LocalEmployeeDirectory(database.employeeDao()) }
@@ -54,6 +59,8 @@ class UserManagementActivity : AppCompatActivity() {
             biometricMatcher.metadata)
     }
     private val deletionStore by lazy { ExplicitFingerprintDeletionStore(this) }
+    private val faceRepository by lazy { LocalFaceEnrollmentRepository(FaceEnrollmentDatabase.create(applicationContext).faceEnrollmentDao(), AndroidKeystoreFaceTemplateProtector()) }
+
     private val syncService by lazy {
         val environment = BackendEnvironmentConfig()
         EmployeeSyncService(FingerprintApiClient(environment).create(), environment,
@@ -82,13 +89,20 @@ class UserManagementActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        android.util.Log.d("UserManagement", "LIFECYCLE onResume")
         loadLocalUsers()
+    }
+
+    override fun onPause() {
+        android.util.Log.d("UserManagement", "LIFECYCLE onPause")
+        super.onPause()
     }
 
     private fun loadLocalUsers() {
         Thread {
             val users = directory.getAll()
             val biometricResult = biometricRepository.getAll()
+            val faceRecords = users.associate { employee -> employeeKey(employee.employeeId) to faceRepository.listByEmployee(employee.employeeId).filter { it.status == FaceEnrollmentStatus.ACTIVE } }
             val localEnrollments = if (biometricResult is RepositoryResult.Success) {
                 biometricResult.value.groupBy { it.enrollmentId }.values
                     .filter(::isCompleteEnrollment)
@@ -97,6 +111,7 @@ class UserManagementActivity : AppCompatActivity() {
             runOnUiThread {
                 allUsers = users
                 enrollmentsByEmployee = localEnrollments
+                faceRecordsByEmployee = faceRecords
                 employeesWithAnyLocalRecords = if (biometricResult is RepositoryResult.Success) {
                     biometricResult.value.map { employeeKey(it.employeeId) }.toSet()
                 } else emptySet()
@@ -164,6 +179,23 @@ class UserManagementActivity : AppCompatActivity() {
                 getString(if (employee.active) R.string.active else R.string.inactive))
             setTextColor(getColor(R.color.attendance_text)); textSize = 16f
         })
+        val faceRecords = faceRecordsByEmployee[employeeKey(employee.employeeId)].orEmpty()
+        // Local Room remains authoritative; a remote flag can only add restore visibility, never hide local data.
+        val localFaceRegistered = faceRecords.size == 3 && faceRecords.all { it.metadata.enrollmentSampleCount == 3 }
+        val faceRegistered = localFaceRegistered || employee.faceEnrolled
+        content.addView(TextView(this).apply {
+            text = if (faceRegistered) "FACE REGISTERED" else "FACE NOT REGISTERED"
+            setTextColor(getColor(R.color.attendance_scanning)); setPadding(0, 8, 0, 8)
+        })
+        content.addView(MaterialButton(this).apply {
+            if (localFaceRegistered) {
+                setText("DELETE FACE")
+                setOnClickListener { confirmDeleteFace(employee) }
+            } else {
+                setText("REGISTER FACE"); isEnabled = employee.active
+                setOnClickListener { if (employee.active) startActivity(Intent(this@UserManagementActivity, com.syntaxgenie.hfx05attendance.face.scan.FaceRegistrationActivity::class.java).apply { putExtra(com.syntaxgenie.hfx05attendance.face.scan.FaceRegistrationActivity.EXTRA_EMPLOYEE_ID, employee.employeeId); putExtra(com.syntaxgenie.hfx05attendance.face.scan.FaceRegistrationActivity.EXTRA_EMPLOYEE_NAME, employee.displayName) }) }
+            }
+        })
         content.addView(TextView(this).apply {
             text = when (fingerprintState) {
                 EmployeeFingerprintState.NotRegistered -> getString(R.string.employee_fingerprint_not_registered)
@@ -220,6 +252,17 @@ class UserManagementActivity : AppCompatActivity() {
 
     private fun openFingerprintManagement(employeeId: String) {
         startActivity(FingerprintManagementActivity.createIntent(this, employeeId))
+    }
+
+    private fun confirmDeleteFace(employee: EmployeeRecord) {
+        androidx.appcompat.app.AlertDialog.Builder(this).setMessage("Delete registered face for ${employee.displayName}?")
+            .setNegativeButton("CANCEL", null).setPositiveButton("DELETE") { _, _ ->
+                Thread {
+                    faceRepository.deleteAllForEmployee(employee.employeeId)
+                    FaceTemplateIndexManager.get(applicationContext).removeEmployee(employee.employeeId)
+                    runOnUiThread { loadLocalUsers() }
+                }.start()
+            }.show()
     }
 
     private fun isCompleteEnrollment(records: List<BiometricRecord>): Boolean =

@@ -41,6 +41,10 @@ import com.syntaxgenie.hfx05attendance.fingerprint.scanner.ScannerError
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.hfx05.Hfx05FingerprintScanner
 import com.syntaxgenie.hfx05attendance.ui.FingerprintVisualView
 import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
+import com.syntaxgenie.hfx05attendance.face.scan.FaceScanActivity
+import com.syntaxgenie.hfx05attendance.attendance.AttendanceActivity
+import com.syntaxgenie.hfx05attendance.biometric.CurrentBiometricRuntimePolicy
+import com.syntaxgenie.hfx05attendance.biometric.BiometricRuntimeMode
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -119,6 +123,14 @@ class MainActivity : AppCompatActivity() {
             }
             startActivity(Intent(this, destination))
         }
+        findViewById<Button>(R.id.scanFaceButton).setOnClickListener {
+            startActivity(Intent(this, FaceScanActivity::class.java).apply {
+                if (BuildConfig.DEBUG) putExtra(FaceScanActivity.EXTRA_DEBUG_IDENTIFICATION, true)
+            })
+        }
+        findViewById<Button>(R.id.scanFingerprintButton).setOnClickListener {
+            startActivity(Intent(this, AttendanceActivity::class.java))
+        }
         render(defaultReadyModel())
     }
 
@@ -128,7 +140,8 @@ class MainActivity : AppCompatActivity() {
         scanActive = true
         scanGeneration++
         render(defaultReadyModel())
-        if (!BuildConfig.FINGERPRINT_EMULATOR && !BuildConfig.FINGERPRINT_GUIDE_MODE) startScanWorker()
+        if (CurrentBiometricRuntimePolicy.mode != BiometricRuntimeMode.FACE_ONLY &&
+            !BuildConfig.FINGERPRINT_EMULATOR && !BuildConfig.FINGERPRINT_GUIDE_MODE) startScanWorker()
     }
 
     override fun onStop() {
@@ -140,6 +153,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startScanWorker() {
+        if (CurrentBiometricRuntimePolicy.mode == BiometricRuntimeMode.FACE_ONLY) return
         if (BuildConfig.FINGERPRINT_EMULATOR || BuildConfig.FINGERPRINT_GUIDE_MODE ||
             !scanActive || !scanWorkerRunning.compareAndSet(false, true)) return
         val generation = scanGeneration
@@ -284,7 +298,7 @@ class MainActivity : AppCompatActivity() {
     private fun defaultReadyModel() = AttendanceHomeModel(
         state = AttendanceHomeState.READY,
         title = getString(R.string.ready_to_scan),
-        instruction = getString(R.string.place_finger_on_sensor),
+        instruction = "Tap Face Recognition to begin",
     )
 
     private fun configureEmulatorControls() {

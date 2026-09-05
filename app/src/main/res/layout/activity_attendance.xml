@@ -1,50 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:gravity="center_horizontal"
-    android:orientation="vertical"
-    android:padding="32dp">
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:layout_marginBottom="40dp"
-        android:text="@string/mark_attendance"
-        android:textAppearance="@style/TextAppearance.Material3.HeadlineMedium" />
-
-    <TextView
-        android:layout_width="180dp"
-        android:layout_height="180dp"
-        android:background="@drawable/fingerprint_scan_area"
-        android:gravity="center"
-        android:text="@string/fingerprint_visual"
-        android:textAlignment="center"
-        android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
-
-    <Button
-        android:id="@+id/scanButton"
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:layout_marginTop="32dp"
-        android:text="@string/scan_fingerprint" />
-
-    <TextView
-        android:id="@+id/statusText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="28dp"
-        android:gravity="center"
-        android:minHeight="48dp"
-        android:textAppearance="@style/TextAppearance.Material3.BodyLarge" />
-
-    <Button
-        android:id="@+id/backButton"
-        style="@style/Widget.Material3.Button.TextButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:text="@string/back" />
-
-</LinearLayout>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/attendance_ready_background" android:padding="24dp">
+    <Button android:id="@+id/backButton" android:layout_width="48dp" android:layout_height="48dp" android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="@string/back" android:insetLeft="0dp" android:insetRight="0dp" android:insetTop="0dp" android:insetBottom="0dp" android:padding="0dp" android:text="‹" android:textColor="@color/attendance_scanning" android:textSize="34sp" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent"/>
+    <TextView android:layout_width="wrap_content" android:layout_height="48dp" android:gravity="center_vertical" android:text="@string/fingerprint_scan_action" android:textColor="@color/attendance_text" android:textSize="20sp" android:textStyle="bold" app:layout_constraintStart_toEndOf="@id/backButton" app:layout_constraintTop_toTopOf="parent"/>
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="44dp" android:text="@string/place_finger_on_sensor" android:textColor="@color/attendance_text_secondary" android:textSize="18sp" app:layout_constraintTop_toBottomOf="@id/backButton" app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent"/>
+    <TextView android:layout_width="190dp" android:layout_height="190dp" android:layout_marginTop="28dp" android:background="@drawable/fingerprint_scan_area" android:gravity="center" android:text="@string/fingerprint_visual" android:textColor="@color/attendance_scanning" android:textSize="18sp" app:layout_constraintTop_toBottomOf="@id/backButton" app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent"/>
+    <Button android:id="@+id/scanButton" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="24dp" android:background="@drawable/biometric_primary_button" android:text="@string/scan_fingerprint" android:textAllCaps="false" android:textColor="@color/white" app:backgroundTint="@null" app:layout_constraintTop_toBottomOf="@id/backButton" app:layout_constraintBottom_toTopOf="@id/statusText" app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent"/>
+    <TextView android:id="@+id/statusText" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:minHeight="48dp" android:textColor="@color/attendance_text" android:textSize="15sp" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent"/>
+</androidx.constraintlayout.widget.ConstraintLayout>

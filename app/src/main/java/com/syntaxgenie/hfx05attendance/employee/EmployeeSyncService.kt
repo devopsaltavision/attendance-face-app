@@ -74,5 +74,6 @@ class EmployeeSyncService(
     }
 
     private fun mapUser(dto: AttendanceDeviceUserDto) = EmployeeRecord(dto.userId, dto.employeeId,
-        dto.displayName, dto.active, dto.fingerprintEnrolled, dto.fingerprintEnrollmentId, dto.updatedAt)
+        dto.displayName, dto.active, dto.fingerprintEnrolled, dto.fingerprintEnrollmentId,
+        dto.updatedAt, dto.faceEnrolled, dto.faceEnrollmentId)
 }

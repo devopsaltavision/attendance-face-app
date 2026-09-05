@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/faceVerifyRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@color/attendance_ready_background">
+
+    <TextView
+        android:id="@+id/faceVerifyBack"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:background="@drawable/face_back_control"
+        android:gravity="center"
+        android:text="←"
+        android:textColor="@color/attendance_text"
+        android:textSize="30sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Look at the Camera"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="@color/attendance_text" />
+
+    <TextView
+        android:id="@+id/faceVerifyEmployee"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textSize="20sp"
+        android:textColor="@color/attendance_text" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/biometric_surface_card">
+
+        <SurfaceView
+            android:id="@+id/faceVerifyPreview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <com.syntaxgenie.hfx05attendance.face.scan.FaceScanOverlayView
+            android:id="@+id/faceVerifyOverlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/faceVerifyStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:padding="16dp"
+        android:text="Look at the camera"
+        android:textSize="22sp"
+        android:textColor="@color/attendance_text" />
+</LinearLayout>

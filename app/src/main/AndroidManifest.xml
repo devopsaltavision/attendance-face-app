@@ -13,6 +13,7 @@
     </queries>
 
     <application
+        android:name=".Hfx05AttendanceApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -35,6 +36,11 @@
             android:exported="false" />
         <activity android:name=".DiagnosticsActivity" android:exported="false" />
         <activity android:name=".face.camera.FaceCameraDiagnosticActivity" android:exported="false" />
+        <activity android:name=".face.detection.diagnostics.FaceDetectionDiagnosticActivity" android:exported="false" />
+        <activity android:name=".face.scan.FaceScanActivity" android:exported="false" />
+        <activity android:name=".face.flow.FaceRecognitionFlowActivity" android:exported="false" />
+        <activity android:name=".face.flow.FaceVerificationActivity" android:exported="false" />
+        <activity android:name=".face.scan.FaceRegistrationActivity" android:exported="false" />
         <activity android:name=".FingerprintRegistrationActivity" android:exported="false" />
         <activity android:name=".FingerprintManagementActivity" android:exported="false" />
         <activity android:name=".AdminDashboardActivity" android:exported="false" />

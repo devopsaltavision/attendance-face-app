@@ -6,6 +6,8 @@ import android.graphics.ImageFormat
 import android.hardware.Camera
 import android.view.Surface
 import android.view.SurfaceHolder
+import com.syntaxgenie.hfx05attendance.face.frame.FaceFrameDiagnostics
+import com.syntaxgenie.hfx05attendance.face.frame.FaceFrameDiagnosticsCalculator
 import kotlin.math.ceil
 
 class FaceCameraDiagnosticManager(
@@ -78,9 +80,12 @@ class FaceCameraDiagnosticManager(
                     lastUiNanos = now
                     val seconds = (now - firstFrameNanos) / 1_000_000_000.0
                     val fps = if (seconds > 0.0) frameCount / seconds else 0.0
+                    val diagnostics = data?.let {
+                        FaceFrameDiagnosticsCalculator.calculateNv21(it, selectedSize.width, selectedSize.height)
+                    }
                     onState(CameraDiagnosticState(cameraId, info.facing, info.orientation,
                         selectedSize.width, selectedSize.height, selectedFormat, displayOrientation,
-                        frameCount, fps, data?.size ?: 0))
+                        frameCount, fps, data?.size ?: 0, diagnostics))
                 }
                 if (data != null && source === camera) runCatching { source.addCallbackBuffer(data) }
             }
@@ -88,7 +93,7 @@ class FaceCameraDiagnosticManager(
             camera = opened
             opened.startPreview()
             onState(CameraDiagnosticState(cameraId, info.facing, info.orientation,
-                selectedSize.width, selectedSize.height, selectedFormat, displayOrientation, 0, 0.0, 0))
+                selectedSize.width, selectedSize.height, selectedFormat, displayOrientation, 0, 0.0, 0, null))
         } catch (error: Exception) {
             runCatching { opened?.setPreviewCallbackWithBuffer(null) }
             runCatching { opened?.stopPreview() }
@@ -130,4 +135,5 @@ data class CameraDiagnosticState(
     val id: Int, val facing: Int, val sensorOrientation: Int,
     val width: Int, val height: Int, val format: Int, val displayOrientation: Int,
     val frameCount: Long, val fps: Double, val lastFrameBytes: Int,
+    val diagnostics: FaceFrameDiagnostics?,
 )

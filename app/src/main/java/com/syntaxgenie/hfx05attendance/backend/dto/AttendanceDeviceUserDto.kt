@@ -7,5 +7,7 @@ data class AttendanceDeviceUserDto(
     val active: Boolean,
     val fingerprintEnrolled: Boolean,
     val fingerprintEnrollmentId: String?,
+    val faceEnrolled: Boolean = false,
+    val faceEnrollmentId: String? = null,
     val updatedAt: String,
 )

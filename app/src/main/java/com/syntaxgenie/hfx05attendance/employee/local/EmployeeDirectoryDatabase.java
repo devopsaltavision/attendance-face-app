@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase;
 import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
-@Database(entities = {EmployeeEntity.class, EmployeeSyncStateEntity.class, AttendanceEventEntity.class}, version = 2, exportSchema = true)
+@Database(entities = {EmployeeEntity.class, EmployeeSyncStateEntity.class, AttendanceEventEntity.class}, version = 3, exportSchema = true)
 public abstract class EmployeeDirectoryDatabase extends RoomDatabase {
     public abstract EmployeeDao employeeDao();
     public abstract AttendanceDao attendanceDao();
@@ -24,8 +24,14 @@ public abstract class EmployeeDirectoryDatabase extends RoomDatabase {
                     "ON attendance_events(device_timestamp)");
         }
     };
+    public static final Migration MIGRATION_2_3 = new Migration(2, 3) {
+        @Override public void migrate(SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE employees ADD COLUMN face_enrolled INTEGER NOT NULL DEFAULT 0");
+            database.execSQL("ALTER TABLE employees ADD COLUMN face_enrollment_id TEXT");
+        }
+    };
     public static EmployeeDirectoryDatabase create(Context context) {
         return Room.databaseBuilder(context.getApplicationContext(), EmployeeDirectoryDatabase.class,
-                "employee_directory.db").addMigrations(MIGRATION_1_2).build();
+                "employee_directory.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3).build();
     }
 }

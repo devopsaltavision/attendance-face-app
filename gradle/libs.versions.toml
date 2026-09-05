@@ -14,6 +14,8 @@ retrofit = "2.11.0"
 okhttp = "4.12.0"
 firebaseBom = "34.16.0"
 googleServices = "4.5.0"
+mlkitFaceDetection = "16.1.7"
+openCv = "4.10.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -35,6 +37,9 @@ okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver",
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
 firebase-storage = { group = "com.google.firebase", name = "firebase-storage" }
+firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
+mlkit-face-detection = { group = "com.google.mlkit", name = "face-detection", version.ref = "mlkitFaceDetection" }
+opencv = { group = "org.opencv", name = "opencv", version.ref = "openCv" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

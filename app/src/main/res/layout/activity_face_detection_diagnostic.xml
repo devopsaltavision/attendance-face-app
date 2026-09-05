@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/faceDetectionRoot" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
+    <com.google.android.material.appbar.MaterialToolbar android:id="@+id/faceDetectionToolbar"
+        android:layout_width="match_parent" android:layout_height="?attr/actionBarSize"
+        android:background="@color/attendance_surface" app:navigationIcon="?attr/homeAsUpIndicator"
+        app:title="@string/face_detection_diagnostics_title" app:titleTextColor="@color/attendance_text" />
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="20dp">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="TEMPORARY ML KIT DETECTION ADAPTER ONLY — no recognition or liveness"
+                android:textStyle="bold" />
+            <Button android:id="@+id/startDetectionCamera0Button" android:layout_width="match_parent" android:layout_height="56dp"
+                android:layout_marginTop="12dp" android:text="START DETECTION CAMERA 0" />
+            <Button android:id="@+id/startDetectionCamera1Button" android:layout_width="match_parent" android:layout_height="56dp"
+                android:layout_marginTop="10dp" android:text="START DETECTION CAMERA 1" />
+            <Button android:id="@+id/stopDetectionButton" style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="10dp"
+                android:enabled="false" android:text="STOP DETECTION" />
+            <FrameLayout android:layout_width="match_parent" android:layout_height="360dp" android:layout_marginTop="12dp">
+                <SurfaceView android:id="@+id/faceDetectionPreview" android:layout_width="match_parent" android:layout_height="match_parent"
+                    android:background="@android:color/black" />
+            </FrameLayout>
+            <TextView android:id="@+id/faceDetectionStatusText" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="12dp" android:fontFamily="monospace" android:text="Detection stopped."
+                android:textIsSelectable="true" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
+

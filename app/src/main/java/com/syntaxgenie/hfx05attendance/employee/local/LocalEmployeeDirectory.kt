@@ -16,8 +16,10 @@ class LocalEmployeeDirectory(private val dao: EmployeeDao) : EmployeeDirectory {
         dao.updateDirectory(records.map(::toEntity), state.toEntity())
 
     private fun toRecord(entity: EmployeeEntity) = EmployeeRecord(entity.userId, entity.employeeId,
-        entity.displayName, entity.active, entity.fingerprintEnrolled, entity.fingerprintEnrollmentId, entity.updatedAt)
+        entity.displayName, entity.active, entity.fingerprintEnrolled, entity.fingerprintEnrollmentId,
+        entity.updatedAt, entity.faceEnrolled, entity.faceEnrollmentId)
     private fun toEntity(record: EmployeeRecord) = EmployeeEntity(record.userId, record.employeeId,
-        record.displayName, record.active, record.fingerprintEnrolled, record.fingerprintEnrollmentId, record.updatedAt)
+        record.displayName, record.active, record.fingerprintEnrolled, record.fingerprintEnrollmentId,
+        record.faceEnrolled, record.faceEnrollmentId, record.updatedAt)
     private fun EmployeeSyncState.toEntity() = EmployeeSyncStateEntity("sync", nextUpdatedAfter, lastSuccessfulSyncAt)
 }

@@ -1,0 +1,133 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "2906a158c78bbecafcd864a267eb3d1f",
+    "entities": [
+      {
+        "tableName": "face_enrollments",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`enrollment_id` TEXT NOT NULL, `employee_id` TEXT NOT NULL, `protected_template_payload` BLOB NOT NULL, `engine_id` TEXT NOT NULL, `model_id` TEXT NOT NULL, `model_version` TEXT NOT NULL, `template_format_version` TEXT NOT NULL, `backup_schema_version` INTEGER NOT NULL, `quality_score` REAL, `enrollment_sample_count` INTEGER, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, `status` TEXT NOT NULL, PRIMARY KEY(`enrollment_id`))",
+        "fields": [
+          {
+            "fieldPath": "enrollmentId",
+            "columnName": "enrollment_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "employeeId",
+            "columnName": "employee_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "protectedTemplatePayload",
+            "columnName": "protected_template_payload",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "engineId",
+            "columnName": "engine_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modelId",
+            "columnName": "model_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modelVersion",
+            "columnName": "model_version",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "templateFormatVersion",
+            "columnName": "template_format_version",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "backupSchemaVersion",
+            "columnName": "backup_schema_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "qualityScore",
+            "columnName": "quality_score",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "enrollmentSampleCount",
+            "columnName": "enrollment_sample_count",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "enrollment_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_face_enrollments_employee_id",
+            "unique": false,
+            "columnNames": [
+              "employee_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_face_enrollments_employee_id` ON `${TABLE_NAME}` (`employee_id`)"
+          },
+          {
+            "name": "index_face_enrollments_engine_id_model_id_model_version_template_format_version",
+            "unique": false,
+            "columnNames": [
+              "engine_id",
+              "model_id",
+              "model_version",
+              "template_format_version"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_face_enrollments_engine_id_model_id_model_version_template_format_version` ON `${TABLE_NAME}` (`engine_id`, `model_id`, `model_version`, `template_format_version`)"
+          },
+          {
+            "name": "index_face_enrollments_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_face_enrollments_status` ON `${TABLE_NAME}` (`status`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '2906a158c78bbecafcd864a267eb3d1f')"
+    ]
+  }
+}

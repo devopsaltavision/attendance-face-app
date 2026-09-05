@@ -17,13 +17,17 @@ public class EmployeeEntity {
     @ColumnInfo(name = "active") public final boolean active;
     @ColumnInfo(name = "fingerprint_enrolled") public final boolean fingerprintEnrolled;
     @Nullable @ColumnInfo(name = "fingerprint_enrollment_id") public final String fingerprintEnrollmentId;
+    @ColumnInfo(name = "face_enrolled") public final boolean faceEnrolled;
+    @Nullable @ColumnInfo(name = "face_enrollment_id") public final String faceEnrollmentId;
     @NonNull @ColumnInfo(name = "updated_at") public final String updatedAt;
 
     public EmployeeEntity(@NonNull String userId, @NonNull String employeeId, @NonNull String displayName,
             boolean active, boolean fingerprintEnrolled, @Nullable String fingerprintEnrollmentId,
+            boolean faceEnrolled, @Nullable String faceEnrollmentId,
             @NonNull String updatedAt) {
         this.userId = userId; this.employeeId = employeeId; this.displayName = displayName;
         this.active = active; this.fingerprintEnrolled = fingerprintEnrolled;
         this.fingerprintEnrollmentId = fingerprintEnrollmentId; this.updatedAt = updatedAt;
+        this.faceEnrolled = faceEnrolled; this.faceEnrollmentId = faceEnrollmentId;
     }
 }

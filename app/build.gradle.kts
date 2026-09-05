@@ -19,6 +19,17 @@ fun configuredValue(name: String): String =
 
 fun quotedBuildConfig(value: String) = "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
+/**
+ * Optional device-specific packaging only. Without -PtargetAbi the debug APK remains universal
+ * for emulator and other development targets.
+ */
+val targetAbi = providers.gradleProperty("targetAbi").orNull?.trim()?.takeIf { it.isNotEmpty() }
+if (targetAbi != null) {
+    require(targetAbi in setOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")) {
+        "Unsupported targetAbi: $targetAbi"
+    }
+}
+
 android {
     namespace = "com.syntaxgenie.hfx05attendance"
     compileSdk {
@@ -33,6 +44,9 @@ android {
         versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        targetAbi?.let { abi ->
+            ndk { abiFilters += abi }
+        }
         buildConfigField("String", "FINGERPRINT_API_KEY", quotedBuildConfig(configuredValue("FINGERPRINT_API_KEY")))
         buildConfigField("String", "FINGERPRINT_DEVICE_ID", quotedBuildConfig(configuredValue("FINGERPRINT_DEVICE_ID")))
         buildConfigField("String", "FINGERPRINT_BACKUP_KEY_BASE64",
@@ -94,6 +108,9 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.storage)
+    implementation(libs.firebase.firestore)
+    implementation(libs.mlkit.face.detection)
+    implementation(libs.opencv)
     annotationProcessor(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.okhttp.mockwebserver)

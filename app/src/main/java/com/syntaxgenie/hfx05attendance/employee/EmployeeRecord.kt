@@ -8,6 +8,8 @@ data class EmployeeRecord(
     val fingerprintEnrolled: Boolean,
     val fingerprintEnrollmentId: String?,
     val updatedAt: String,
+    val faceEnrolled: Boolean = false,
+    val faceEnrollmentId: String? = null,
 ) {
     init { require(userId.isNotBlank() && employeeId.isNotBlank() && displayName.isNotBlank() && updatedAt.isNotBlank()) }
 }
