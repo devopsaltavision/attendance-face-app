@@ -2,8 +2,11 @@ package com.syntaxgenie.hfx05attendance.fingerprint.backup
 
 import android.content.Context
 import android.util.Base64
+import com.syntaxgenie.hfx05attendance.backup.PortableBackupCrypto
+import com.syntaxgenie.hfx05attendance.backup.CloudBackupMetadata
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageMetadata
 import com.google.firebase.storage.StorageException
 import com.syntaxgenie.hfx05attendance.BuildConfig
 import com.syntaxgenie.hfx05attendance.backend.config.DeviceConfigurationRepository
@@ -15,12 +18,7 @@ import com.syntaxgenie.hfx05attendance.fingerprint.repository.RepositoryResult
 import com.syntaxgenie.hfx05attendance.fingerprint.repository.local.LocalBiometricRepository
 import org.json.JSONArray
 import org.json.JSONObject
-import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
-import java.security.SecureRandom
-import javax.crypto.Cipher
-import javax.crypto.spec.GCMParameterSpec
-import javax.crypto.spec.SecretKeySpec
 
 class FingerprintBackupService(
     context: Context,
@@ -116,6 +114,26 @@ class FingerprintBackupService(
         }
     }
 
+    /** Deletes only the device recovery object; local fingerprint records remain untouched. */
+    fun deleteCloudBackup(callback: (Result<Unit>) -> Unit) {
+        val configuration = configuration(callback) ?: return
+        storage.reference.child(storagePath(configuration.deviceId)).delete()
+            .addOnSuccessListener { callback(Result.success(Unit)) }
+            .addOnFailureListener { error ->
+                if (error is StorageException && error.errorCode == StorageException.ERROR_OBJECT_NOT_FOUND) callback(Result.success(Unit))
+                else callback(Result.failure(BackupFailure("Fingerprint cloud backup could not be deleted.")))
+            }
+    }
+
+    fun readCloudMetadata(callback: (Result<CloudBackupMetadata>) -> Unit) {
+        val configuration = configuration(callback) ?: return
+        storage.reference.child(storagePath(configuration.deviceId)).metadata.addOnSuccessListener { metadata ->
+            callback(Result.success(CloudBackupMetadata(true, metadata.getCustomMetadata("recordCount")?.toIntOrNull(),
+                metadata.getCustomMetadata("backupAtEpochMillis")?.toLongOrNull())))
+        }.addOnFailureListener { error -> if (error is StorageException && error.errorCode == StorageException.ERROR_OBJECT_NOT_FOUND)
+            callback(Result.success(CloudBackupMetadata(false))) else callback(Result.failure(BackupFailure("Fingerprint cloud backup status could not be read."))) }
+    }
+
     private fun loadAndValidateLocal(): List<BiometricRecord> {
         val records = when (val result = repository.getAll()) {
             is RepositoryResult.Success -> result.value
@@ -161,14 +179,19 @@ class FingerprintBackupService(
         Thread {
             val prepared = runCatching {
                 FingerprintBackupCodec.validateRecords(records, activeMatcherMetadata, now(), allowEmpty = true)
-                val plaintext = FingerprintBackupCodec.serialize(configuration.deviceId, now(), records)
-                FingerprintBackupCrypto.encrypt(plaintext, configuration.key)
+                val backupAt = now()
+                FingerprintBackupCrypto.encrypt(FingerprintBackupCodec.serialize(configuration.deviceId, backupAt, records), configuration.key) to backupAt
             }
             if (prepared.isFailure) {
                 callback(Result.failure(prepared.exceptionOrNull()!!))
                 return@Thread
             }
-            storage.reference.child(storagePath(configuration.deviceId)).putBytes(prepared.getOrThrow())
+            val (encrypted, backupAt) = prepared.getOrThrow()
+            val metadata = StorageMetadata.Builder().setCustomMetadata("backupType", "FINGERPRINT")
+                .setCustomMetadata("schemaVersion", BACKUP_SCHEMA_VERSION.toString())
+                .setCustomMetadata("recordCount", records.groupBy { it.enrollmentId }.size.toString())
+                .setCustomMetadata("backupAtEpochMillis", backupAt.toString()).build()
+            storage.reference.child(storagePath(configuration.deviceId)).putBytes(encrypted, metadata)
                 .addOnSuccessListener { callback(Result.success(Unit)) }
                 .addOnFailureListener { callback(Result.failure(BackupFailure("Fingerprint synchronization failed."))) }
         }.apply { name = "fingerprint-sync-encrypt" }.start()
@@ -200,11 +223,11 @@ class FingerprintBackupService(
             return null
         }
         val key = try {
-            Base64.decode(BuildConfig.FINGERPRINT_BACKUP_KEY_BASE64.trim(), Base64.DEFAULT)
-        } catch (_: IllegalArgumentException) {
+            PortableBackupCrypto.configuredKey()
+        } catch (_: Exception) {
             null
         }
-        if (key == null || key.size != AES_KEY_BYTES) {
+        if (key == null) {
             callback(Result.failure(BackupFailure("Fingerprint synchronization encryption is not configured correctly.")))
             return null
         }
@@ -216,7 +239,6 @@ class FingerprintBackupService(
 
     companion object {
         const val BACKUP_SCHEMA_VERSION = 1
-        private const val AES_KEY_BYTES = 32
         private const val MAX_BACKUP_BYTES = 32L * 1024L * 1024L
         fun storagePath(deviceId: String) = "fingerprint-backups/$deviceId/latest.fpbackup"
     }
@@ -390,41 +412,8 @@ private object FingerprintBackupCodec {
 }
 
 private object FingerprintBackupCrypto {
-    private val MAGIC = byteArrayOf('F'.code.toByte(), 'P'.code.toByte(), 'B'.code.toByte(), 'K'.code.toByte())
-    private const val ENVELOPE_VERSION: Byte = 1
-    private const val IV_BYTES = 12
-    private const val GCM_TAG_BITS = 128
-
-    fun encrypt(plaintext: ByteArray, key: ByteArray): ByteArray {
-        val iv = ByteArray(IV_BYTES).also(SecureRandom()::nextBytes)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(GCM_TAG_BITS, iv))
-        val ciphertext = cipher.doFinal(plaintext)
-        return ByteBuffer.allocate(MAGIC.size + 2 + iv.size + ciphertext.size)
-            .put(MAGIC).put(ENVELOPE_VERSION).put(iv.size.toByte()).put(iv).put(ciphertext).array()
-    }
-
-    fun decrypt(envelope: ByteArray, key: ByteArray): ByteArray {
-        try {
-            if (envelope.size < MAGIC.size + 2 + IV_BYTES + 16) throw BackupFailure("The fingerprint backup is invalid.")
-            val buffer = ByteBuffer.wrap(envelope)
-            val magic = ByteArray(MAGIC.size).also(buffer::get)
-            if (!magic.contentEquals(MAGIC) || buffer.get() != ENVELOPE_VERSION) {
-                throw BackupFailure("This fingerprint backup format is not supported.")
-            }
-            val ivSize = buffer.get().toInt() and 0xff
-            if (ivSize != IV_BYTES || buffer.remaining() <= ivSize + 16) {
-                throw BackupFailure("The fingerprint backup is invalid.")
-            }
-            val iv = ByteArray(ivSize).also(buffer::get)
-            val ciphertext = ByteArray(buffer.remaining()).also(buffer::get)
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(GCM_TAG_BITS, iv))
-            return cipher.doFinal(ciphertext)
-        } catch (error: BackupFailure) {
-            throw error
-        } catch (_: Exception) {
-            throw BackupFailure("Fingerprint backup authentication or decryption failed.")
-        }
-    }
+    private val magic = byteArrayOf('F'.code.toByte(), 'P'.code.toByte(), 'B'.code.toByte(), 'K'.code.toByte())
+    fun encrypt(plaintext: ByteArray, key: ByteArray) = PortableBackupCrypto.encrypt(plaintext, key, magic)
+    fun decrypt(envelope: ByteArray, key: ByteArray) = try { PortableBackupCrypto.decrypt(envelope, key, magic) }
+    catch (_: Exception) { throw BackupFailure("Fingerprint backup authentication or decryption failed.") }
 }

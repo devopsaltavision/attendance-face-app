@@ -16,7 +16,4 @@ object OpenCvEngineConfiguration {
     const val SFACE_ENGINE_ID = "opencv-sface"
     const val SFACE_MODEL_VERSION = "2021dec"
     const val TEMPLATE_FORMAT_VERSION = "1"
-    const val AURAFACE_ASSET_PATH = "face_models/glintr100.onnx"
-    const val AURAFACE_FILENAME = "glintr100.onnx"
-    const val AURAFACE_SHA256 = "a7933ea5330113b01c9b60351d8f4c33003f145d8470ac5f0e52ee2effe25c60"
 }

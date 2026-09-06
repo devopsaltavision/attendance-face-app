@@ -20,6 +20,9 @@ class AdminDashboardActivity : AppCompatActivity() {
         findViewById<Button>(R.id.fingerprintManagementButton).setOnClickListener {
             startActivity(Intent(this, FingerprintManagementActivity::class.java))
         }
+        findViewById<Button>(R.id.backupRestoreButton).setOnClickListener {
+            startActivity(Intent(this, DeviceBackupActivity::class.java))
+        }
         findViewById<Button>(R.id.deviceSettingsButton).setOnClickListener {
             startActivity(Intent(this, DeviceSettingsActivity::class.java))
         }

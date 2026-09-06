@@ -20,8 +20,8 @@ fun configuredValue(name: String): String =
 fun quotedBuildConfig(value: String) = "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
 /**
- * Optional device-specific packaging only. Without -PtargetAbi the debug APK remains universal
- * for emulator and other development targets.
+ * Optional device-specific debug packaging. Without -PtargetAbi the debug APK remains universal
+ * for emulator and other development targets; HF-X05 release APKs are always arm64-v8a only.
  */
 val targetAbi = providers.gradleProperty("targetAbi").orNull?.trim()?.takeIf { it.isNotEmpty() }
 if (targetAbi != null) {
@@ -44,9 +44,6 @@ android {
         versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        targetAbi?.let { abi ->
-            ndk { abiFilters += abi }
-        }
         buildConfigField("String", "FINGERPRINT_API_KEY", quotedBuildConfig(configuredValue("FINGERPRINT_API_KEY")))
         buildConfigField("String", "FINGERPRINT_DEVICE_ID", quotedBuildConfig(configuredValue("FINGERPRINT_DEVICE_ID")))
         buildConfigField("String", "FINGERPRINT_BACKUP_KEY_BASE64",
@@ -65,12 +62,16 @@ android {
 
     buildTypes {
         debug {
+            targetAbi?.let { abi ->
+                ndk { abiFilters += abi }
+            }
             val configuredUrl = configuredValue("FINGERPRINT_API_BASE_URL")
             val debugUrl = configuredUrl.ifBlank { "https://dev-yasitha--av-attendance.netlify.app/" }
             buildConfigField("String", "FINGERPRINT_API_BASE_URL", quotedBuildConfig(debugUrl))
             buildConfigField("String", "FINGERPRINT_API_ENVIRONMENT", quotedBuildConfig("Development"))
         }
         release {
+            ndk { abiFilters += "arm64-v8a" }
             buildConfigField("String", "FINGERPRINT_API_BASE_URL", quotedBuildConfig(configuredValue("FINGERPRINT_API_BASE_URL")))
             buildConfigField("String", "FINGERPRINT_API_ENVIRONMENT", quotedBuildConfig("Production"))
             optimization {

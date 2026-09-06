@@ -34,17 +34,6 @@ class OpenCvEngineLifecycle(private val context: Context) {
         return model
     }
 
-    fun prepareAuraFaceModel(): File {
-        check(OpenCVLoader.initLocal()) { "OpenCV native runtime could not be loaded." }
-        val directory = File(context.filesDir, "opencv-models").apply { mkdirs() }
-        val model = File(directory, OpenCvEngineConfiguration.AURAFACE_FILENAME)
-        if (!model.isFile || sha256(model) != OpenCvEngineConfiguration.AURAFACE_SHA256) {
-            context.assets.open(OpenCvEngineConfiguration.AURAFACE_ASSET_PATH).use { input -> model.outputStream().use { output -> input.copyTo(output) } }
-        }
-        check(sha256(model) == OpenCvEngineConfiguration.AURAFACE_SHA256) { "AuraFace model checksum verification failed." }
-        return model
-    }
-
     private fun sha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
         BufferedInputStream(file.inputStream()).use { input ->
