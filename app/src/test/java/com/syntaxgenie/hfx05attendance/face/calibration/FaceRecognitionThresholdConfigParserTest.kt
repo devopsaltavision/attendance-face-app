@@ -25,20 +25,20 @@ class FaceRecognitionThresholdConfigParserTest {
     }
 
     @Test
-    fun validProductionConfigRequiresAndAcceptsAllThresholds() {
+    fun validProductionConfigRequiresAndAcceptsDecisionConfig() {
         val config = FaceRecognitionThresholdConfigParser.parse(
             mapOf(
                 "mode" to "PRODUCTION",
                 "configVersion" to 2L,
                 "matchThreshold" to 0.7,
-                "candidateMinimumScore" to 0.6,
-                "candidateMaximumGap" to 0.1,
-                "duplicateEnrollmentThreshold" to 0.8,
+                "minMatchMargin" to 0.2,
+                "accuracyLoggingEnabled" to true,
             ),
         )
 
         assertEquals(FaceRecognitionConfigMode.PRODUCTION, config?.mode)
         assertEquals(0.7, config?.matchThreshold)
+        assertEquals(0.2, config?.minMatchMargin)
     }
 
     @Test

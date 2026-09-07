@@ -41,6 +41,7 @@
         <activity android:name=".face.flow.FaceRecognitionFlowActivity" android:exported="false" />
         <activity android:name=".face.flow.FaceVerificationActivity" android:exported="false" />
         <activity android:name=".face.scan.FaceRegistrationActivity" android:exported="false" />
+        <activity android:name=".face.calibration.StaticImageFaceCalibrationActivity" android:exported="false" />
         <activity android:name=".FingerprintRegistrationActivity" android:exported="false" />
         <activity android:name=".FingerprintManagementActivity" android:exported="false" />
         <activity android:name=".DeviceBackupActivity" android:exported="false" />

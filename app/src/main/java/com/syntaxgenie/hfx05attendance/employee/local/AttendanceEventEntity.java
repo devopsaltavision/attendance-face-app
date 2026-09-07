@@ -19,14 +19,17 @@ public class AttendanceEventEntity {
     @Nullable @ColumnInfo(name = "attendance_record_id") public final String attendanceRecordId;
     @Nullable @ColumnInfo(name = "attendance_action") public final String attendanceAction;
     @Nullable @ColumnInfo(name = "server_timestamp") public final String serverTimestamp;
+    @Nullable @ColumnInfo(name = "requested_action") public final String requestedAction;
+    @Nullable @ColumnInfo(name = "biometric_type") public final String biometricType;
 
     public AttendanceEventEntity(@NonNull String eventId, @NonNull String userId,
             @NonNull String employeeId, @NonNull String deviceTimestamp, @NonNull String syncState,
             @Nullable String attendanceRecordId, @Nullable String attendanceAction,
-            @Nullable String serverTimestamp) {
+            @Nullable String serverTimestamp, @Nullable String requestedAction, @Nullable String biometricType) {
         this.eventId = eventId; this.userId = userId; this.employeeId = employeeId;
         this.deviceTimestamp = deviceTimestamp; this.syncState = syncState;
         this.attendanceRecordId = attendanceRecordId; this.attendanceAction = attendanceAction;
         this.serverTimestamp = serverTimestamp;
+        this.requestedAction = requestedAction; this.biometricType = biometricType;
     }
 }

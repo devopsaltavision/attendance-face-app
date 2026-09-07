@@ -80,6 +80,32 @@ class FaceCalibrationFirestoreRepository private constructor(context: Context) {
             }
     }
 
+    /** Static-image calibration records numeric labels/scores only; never the image or feature. */
+    fun recordStaticImage(event: StaticCalibrationEvent) {
+        val payload = hashMapOf<String, Any?>(
+            "sourceType" to "STATIC_IMAGE", "groundTruthType" to event.groundTruth.name,
+            "trueEmployeeId" to event.trueEmployeeId, "topEmployeeId" to event.topEmployeeId,
+            "topScore" to event.topScore, "secondEmployeeId" to event.secondEmployeeId,
+            "secondScore" to event.secondScore, "margin" to event.margin,
+            "correctEmployeeScore" to event.correctEmployeeScore, "classification" to event.classification,
+            "configVersion" to lastValidConfig.configVersion, "createdAt" to FieldValue.serverTimestamp(),
+        )
+        firestore.collection(EVENT_COLLECTION).add(payload)
+    }
+
+    /** Best-effort numeric telemetry only. A disabled config performs no Firestore write. */
+    fun recordLiveRecognition(event: FaceRecognitionTelemetryEvent) {
+        if (!FaceRecognitionTelemetryPolicy.shouldWrite(lastValidConfig.accuracyLoggingEnabled)) return
+        firestore.collection(EVENT_COLLECTION).add(hashMapOf<String, Any?>(
+            "sourceType" to "LIVE_RECOGNITION", "decision" to event.decision,
+            "topEmployeeId" to event.topEmployeeId, "topScore" to event.topScore,
+            "secondEmployeeId" to event.secondEmployeeId, "secondScore" to event.secondScore,
+            "margin" to event.margin, "matchThresholdUsed" to event.matchThresholdUsed,
+            "minMatchMarginUsed" to event.minMatchMarginUsed, "configVersion" to event.configVersion,
+            "deviceId" to deviceConfiguration.deviceId(), "createdAt" to FieldValue.serverTimestamp(),
+        )).addOnFailureListener { error -> if (BuildConfig.DEBUG) Log.w(LOG_TAG, "FACE_RECOGNITION_TELEMETRY_FAILED", error) }
+    }
+
     fun newEvent(
         topEmployeeId: String,
         topScore: Double,
@@ -109,6 +135,8 @@ class FaceCalibrationFirestoreRepository private constructor(context: Context) {
             .putString(KEY_MODE, config.mode.name)
             .putInt(KEY_VERSION, config.configVersion ?: 0)
             .putValue(KEY_MATCH_THRESHOLD, config.matchThreshold)
+            .putValue(KEY_MIN_MATCH_MARGIN, config.minMatchMargin)
+            .putBoolean(KEY_ACCURACY_LOGGING_ENABLED, config.accuracyLoggingEnabled)
             .putValue(KEY_CANDIDATE_MINIMUM_SCORE, config.candidateMinimumScore)
             .putValue(KEY_CANDIDATE_MAXIMUM_GAP, config.candidateMaximumGap)
             .putValue(KEY_DUPLICATE_ENROLLMENT_THRESHOLD, config.duplicateEnrollmentThreshold)
@@ -117,16 +145,18 @@ class FaceCalibrationFirestoreRepository private constructor(context: Context) {
 
     private fun loadCachedConfig(): FaceRecognitionThresholdConfig {
         val mode = preferences.getString(KEY_MODE, null)?.let { runCatching { FaceRecognitionConfigMode.valueOf(it) }.getOrNull() }
-            ?: return calibrationSafeConfig()
+            ?: return productionFallbackConfig()
         val raw = mapOf<String, Any?>(
             "mode" to mode.name,
             "configVersion" to preferences.getInt(KEY_VERSION, 0),
             "matchThreshold" to preferences.valueOrNull(KEY_MATCH_THRESHOLD),
+            "minMatchMargin" to preferences.valueOrNull(KEY_MIN_MATCH_MARGIN),
+            "accuracyLoggingEnabled" to preferences.getBoolean(KEY_ACCURACY_LOGGING_ENABLED, false),
             "candidateMinimumScore" to preferences.valueOrNull(KEY_CANDIDATE_MINIMUM_SCORE),
             "candidateMaximumGap" to preferences.valueOrNull(KEY_CANDIDATE_MAXIMUM_GAP),
             "duplicateEnrollmentThreshold" to preferences.valueOrNull(KEY_DUPLICATE_ENROLLMENT_THRESHOLD),
         )
-        return FaceRecognitionThresholdConfigParser.parse(raw) ?: calibrationSafeConfig()
+        return FaceRecognitionThresholdConfigParser.parse(raw) ?: productionFallbackConfig()
     }
 
     private fun android.content.SharedPreferences.Editor.putValue(key: String, value: Double?) = apply {
@@ -150,6 +180,8 @@ class FaceCalibrationFirestoreRepository private constructor(context: Context) {
         private const val KEY_MODE = "mode"
         private const val KEY_VERSION = "config_version"
         private const val KEY_MATCH_THRESHOLD = "match_threshold"
+        private const val KEY_MIN_MATCH_MARGIN = "min_match_margin"
+        private const val KEY_ACCURACY_LOGGING_ENABLED = "accuracy_logging_enabled"
         private const val KEY_CANDIDATE_MINIMUM_SCORE = "candidate_minimum_score"
         private const val KEY_CANDIDATE_MAXIMUM_GAP = "candidate_maximum_gap"
         private const val KEY_DUPLICATE_ENROLLMENT_THRESHOLD = "duplicate_enrollment_threshold"
@@ -160,9 +192,11 @@ class FaceCalibrationFirestoreRepository private constructor(context: Context) {
             instance ?: FaceCalibrationFirestoreRepository(context).also { instance = it }
         }
 
-        fun calibrationSafeConfig() = FaceRecognitionThresholdConfig(
-            mode = FaceRecognitionConfigMode.CALIBRATION,
-            matchThreshold = null,
+        fun productionFallbackConfig() = FaceRecognitionThresholdConfig(
+            mode = FaceRecognitionConfigMode.PRODUCTION,
+            matchThreshold = BuildConfig.FACE_MATCH_THRESHOLD,
+            minMatchMargin = BuildConfig.FACE_MIN_MATCH_MARGIN,
+            accuracyLoggingEnabled = BuildConfig.FACE_ACCURACY_LOGGING_ENABLED,
             candidateMinimumScore = null,
             candidateMaximumGap = null,
             duplicateEnrollmentThreshold = null,
@@ -178,19 +212,22 @@ object FaceRecognitionThresholdConfigParser {
         val version = (values["configVersion"] as? Number)?.toIntExactOrNull()?.takeIf { it > 0 } ?: return null
         val scoreNames = listOf(
             "matchThreshold",
+            "minMatchMargin",
             "candidateMinimumScore",
             "candidateMaximumGap",
             "duplicateEnrollmentThreshold",
         )
         if (scoreNames.any { values.hasInvalidScore(it) }) return null
         val match = values.scoreOrNull("matchThreshold")
+        val margin = values.scoreOrNull("minMatchMargin")
+        val logging = values["accuracyLoggingEnabled"] as? Boolean
         val minimum = values.scoreOrNull("candidateMinimumScore")
         val maximumGap = values.scoreOrNull("candidateMaximumGap")
         val duplicate = values.scoreOrNull("duplicateEnrollmentThreshold")
         if (mode == FaceRecognitionConfigMode.PRODUCTION &&
-            (match == null || minimum == null || maximumGap == null || duplicate == null)
+            (match == null || margin == null || logging == null)
         ) return null
-        return FaceRecognitionThresholdConfig(mode, match, minimum, maximumGap, duplicate, version)
+        return FaceRecognitionThresholdConfig(mode, match, margin, logging ?: false, minimum, maximumGap, duplicate, version)
     }
 
     private fun Map<String, Any?>.scoreOrNull(name: String): Double? = (this[name] as? Number)?.toDouble()

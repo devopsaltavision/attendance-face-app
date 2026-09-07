@@ -83,6 +83,29 @@ class AttendanceServiceTest {
         assertEquals(0, server.requestCount)
     }
 
+    @Test fun faceCheckInSendsExplicitActionAndBiometricType() {
+        server.enqueue(successResponse("event-1", "CHECK_IN"))
+        service().record(TEST_USER_ID, TEST_EMPLOYEE_ID, "CHECK_IN", "FACE")
+        val json = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
+        assertEquals("CHECK_IN", json["action"].asString)
+        assertEquals("FACE", json["biometricType"].asString)
+    }
+
+    @Test fun faceCheckOutSendsExplicitActionAndBiometricType() {
+        server.enqueue(successResponse("event-1", "CHECK_OUT"))
+        service().record(TEST_USER_ID, TEST_EMPLOYEE_ID, "CHECK_OUT", "FACE")
+        val json = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
+        assertEquals("CHECK_OUT", json["action"].asString)
+        assertEquals("FACE", json["biometricType"].asString)
+    }
+
+    @Test fun fingerprintRequestOmitsOptionalFaceFields() {
+        server.enqueue(successResponse("event-1", "CHECK_IN"))
+        service().record(TEST_USER_ID, TEST_EMPLOYEE_ID)
+        val json = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
+        assertFalse(json.has("action")); assertFalse(json.has("biometricType"))
+    }
+
     @Test fun missingDeviceConfigurationStillPersistsWithoutRequest() {
         val missingConfig = BackendEnvironmentConfig(server.url("/").toString(), "", "Test")
         val service = AttendanceService(FingerprintApiClient(missingConfig).create(), missingConfig,

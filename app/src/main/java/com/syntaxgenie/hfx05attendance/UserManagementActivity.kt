@@ -43,6 +43,7 @@ class UserManagementActivity : AppCompatActivity() {
     private lateinit var empty: TextView
     private lateinit var searchInput: EditText
     private lateinit var refreshButton: MaterialButton
+    private var faceRegistrationMode = false
     private var allUsers: List<EmployeeRecord> = emptyList()
     private var displayedUsers: List<EmployeeRecord> = emptyList()
     private var enrollmentsByEmployee: Map<String, List<List<BiometricRecord>>> = emptyMap()
@@ -71,7 +72,14 @@ class UserManagementActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_user_management)
         KioskWindowInsets.apply(this, findViewById(R.id.userManagementRoot))
+        faceRegistrationMode = intent.getBooleanExtra(EXTRA_MODE_FACE_REGISTRATION, false)
         findViewById<MaterialToolbar>(R.id.userManagementToolbar).setNavigationOnClickListener { finish() }
+        if (faceRegistrationMode) {
+            findViewById<View>(R.id.faceRegistrationHeading).visibility = View.VISIBLE
+            findViewById<View>(R.id.faceRegistrationHelper).visibility = View.VISIBLE
+            findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.userSearchLayout)
+                .hint = getString(R.string.search_employees)
+        }
         rows = findViewById(R.id.employeeRows)
         status = findViewById(R.id.userSyncStatus)
         empty = findViewById(R.id.emptyUsersText)
@@ -174,7 +182,17 @@ class UserManagementActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(40, 30, 40, 30)
         }
-        content.addView(TextView(this).apply {
+        if (faceRegistrationMode) {
+            content.addView(TextView(this).apply {
+                text = employee.displayName
+                setTextColor(getColor(R.color.attendance_text)); textSize = 20f
+            })
+            content.addView(TextView(this).apply {
+                text = getString(R.string.employee_id_label, employee.employeeId)
+                setTextColor(getColor(R.color.attendance_text_secondary)); textSize = 16f
+                setPadding(0, 4, 0, 8)
+            })
+        } else content.addView(TextView(this).apply {
             text = getString(R.string.employee_identity, employee.displayName, employee.employeeId,
                 getString(if (employee.active) R.string.active else R.string.inactive))
             setTextColor(getColor(R.color.attendance_text)); textSize = 16f
@@ -184,18 +202,40 @@ class UserManagementActivity : AppCompatActivity() {
         val localFaceRegistered = faceRecords.size == 3 && faceRecords.all { it.metadata.enrollmentSampleCount == 3 }
         val faceRegistered = localFaceRegistered || employee.faceEnrolled
         content.addView(TextView(this).apply {
-            text = if (faceRegistered) "FACE REGISTERED" else "FACE NOT REGISTERED"
+            text = if (faceRegistrationMode) getString(if (faceRegistered) R.string.face_registered else R.string.face_not_registered)
+                else if (faceRegistered) "FACE REGISTERED" else "FACE NOT REGISTERED"
+            if (faceRegistrationMode) {
+                setCompoundDrawablesWithIntrinsicBounds(
+                    if (faceRegistered) android.R.drawable.presence_online else android.R.drawable.presence_invisible,
+                    0, 0, 0,
+                )
+                compoundDrawablePadding = 12
+            }
             setTextColor(getColor(R.color.attendance_scanning)); setPadding(0, 8, 0, 8)
         })
         content.addView(MaterialButton(this).apply {
-            if (localFaceRegistered) {
+            if (faceRegistrationMode && faceRegistered) {
+                setText(R.string.face_already_registered)
+                setOnClickListener { showFaceAlreadyRegistered(employee, localFaceRegistered) }
+            } else if (localFaceRegistered) {
                 setText("DELETE FACE")
                 setOnClickListener { confirmDeleteFace(employee) }
             } else {
                 setText("REGISTER FACE"); isEnabled = employee.active
-                setOnClickListener { if (employee.active) startActivity(Intent(this@UserManagementActivity, com.syntaxgenie.hfx05attendance.face.scan.FaceRegistrationActivity::class.java).apply { putExtra(com.syntaxgenie.hfx05attendance.face.scan.FaceRegistrationActivity.EXTRA_EMPLOYEE_ID, employee.employeeId); putExtra(com.syntaxgenie.hfx05attendance.face.scan.FaceRegistrationActivity.EXTRA_EMPLOYEE_NAME, employee.displayName) }) }
+                setOnClickListener { if (employee.active) {
+                    if (faceRegistrationMode) showRegistrationStart(employee) else startFaceRegistration(employee)
+                } }
             }
         })
+        if (faceRegistrationMode) {
+            card.isClickable = true
+            card.isFocusable = true
+            card.setOnClickListener {
+                if (faceRegistered) showFaceAlreadyRegistered(employee, localFaceRegistered)
+                else if (employee.active) showRegistrationStart(employee)
+                else Toast.makeText(this, R.string.employee_inactive, Toast.LENGTH_SHORT).show()
+            }
+        }
         content.addView(TextView(this).apply {
             text = when (fingerprintState) {
                 EmployeeFingerprintState.NotRegistered -> getString(R.string.employee_fingerprint_not_registered)
@@ -234,6 +274,31 @@ class UserManagementActivity : AppCompatActivity() {
         card.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 20 }
         return card
+    }
+
+    private fun showRegistrationStart(employee: EmployeeRecord) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.face_registration)
+            .setMessage("${employee.displayName}\n${getString(R.string.employee_id_label, employee.employeeId)}")
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.start_face_registration) { _, _ -> startFaceRegistration(employee) }
+            .show()
+    }
+
+    private fun startFaceRegistration(employee: EmployeeRecord) {
+        startActivity(Intent(this, com.syntaxgenie.hfx05attendance.face.scan.FaceRegistrationActivity::class.java).apply {
+            putExtra(com.syntaxgenie.hfx05attendance.face.scan.FaceRegistrationActivity.EXTRA_EMPLOYEE_ID, employee.employeeId)
+            putExtra(com.syntaxgenie.hfx05attendance.face.scan.FaceRegistrationActivity.EXTRA_EMPLOYEE_NAME, employee.displayName)
+        })
+    }
+
+    private fun showFaceAlreadyRegistered(employee: EmployeeRecord, localFaceRegistered: Boolean) {
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.face_already_registered)
+            .setMessage("${employee.displayName}\n${getString(R.string.employee_id_label, employee.employeeId)}")
+            .setNegativeButton(R.string.cancel, null)
+        if (localFaceRegistered) dialog.setPositiveButton("MANAGE FACE") { _, _ -> confirmDeleteFace(employee) }
+        dialog.show()
     }
 
     private fun fingerprintState(employee: EmployeeRecord): EmployeeFingerprintState {
@@ -289,4 +354,10 @@ class UserManagementActivity : AppCompatActivity() {
         return manager.getNetworkCapabilities(network)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
     }
     private fun isDebugBuild() = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+
+    companion object {
+        private const val EXTRA_MODE_FACE_REGISTRATION = "modeFaceRegistration"
+        fun faceRegistrationIntent(context: Context) = Intent(context, UserManagementActivity::class.java)
+            .putExtra(EXTRA_MODE_FACE_REGISTRATION, true)
+    }
 }

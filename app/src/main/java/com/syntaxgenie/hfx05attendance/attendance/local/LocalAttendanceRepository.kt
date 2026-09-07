@@ -19,7 +19,7 @@ class LocalAttendanceRepository(private val dao: AttendanceDao) : AttendanceRepo
     override fun delete(eventId: String): Boolean = dao.delete(eventId) > 0
 
     private fun AttendanceEvent.toEntity() = AttendanceEventEntity(eventId, userId, employeeId,
-        deviceTimestamp, syncState.name, attendanceRecordId, attendanceAction, serverTimestamp)
+        deviceTimestamp, syncState.name, attendanceRecordId, attendanceAction, serverTimestamp, requestedAction, biometricType)
     private fun AttendanceEventEntity.toRecord() = AttendanceEvent(eventId, userId, employeeId,
-        deviceTimestamp, AttendanceSyncState.valueOf(syncState), attendanceRecordId, attendanceAction, serverTimestamp)
+        deviceTimestamp, AttendanceSyncState.valueOf(syncState), attendanceRecordId, attendanceAction, serverTimestamp, requestedAction, biometricType)
 }

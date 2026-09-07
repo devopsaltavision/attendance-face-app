@@ -31,12 +31,22 @@ enum class FaceRecognitionConfigMode {
     PRODUCTION,
 }
 
+data class FaceRecognitionTelemetryEvent(
+    val decision: String, val topEmployeeId: String?, val topScore: Double?,
+    val secondEmployeeId: String?, val secondScore: Double?, val margin: Double?,
+    val matchThresholdUsed: Double, val minMatchMarginUsed: Double, val configVersion: Int?,
+)
+
+object FaceRecognitionTelemetryPolicy { fun shouldWrite(enabled: Boolean) = enabled }
+
 /**
  * A validated remote configuration. Reading/caching it does not activate any face decision.
  */
 data class FaceRecognitionThresholdConfig(
     val mode: FaceRecognitionConfigMode,
     val matchThreshold: Double?,
+    val minMatchMargin: Double?,
+    val accuracyLoggingEnabled: Boolean,
     val candidateMinimumScore: Double?,
     val candidateMaximumGap: Double?,
     val duplicateEnrollmentThreshold: Double?,

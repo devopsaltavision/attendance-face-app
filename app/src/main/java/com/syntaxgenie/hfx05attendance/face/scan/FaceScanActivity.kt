@@ -40,6 +40,8 @@ import com.syntaxgenie.hfx05attendance.face.repository.local.FaceEnrollmentDatab
 import com.syntaxgenie.hfx05attendance.face.repository.local.LocalFaceEnrollmentRepository
 import com.syntaxgenie.hfx05attendance.face.flow.FaceRecognitionFlowActivity
 import com.syntaxgenie.hfx05attendance.face.flow.FaceCandidateSeed
+import com.syntaxgenie.hfx05attendance.face.flow.FaceRecognitionDecisionPolicy
+import com.syntaxgenie.hfx05attendance.face.calibration.FaceRecognitionTelemetryEvent
 import com.syntaxgenie.hfx05attendance.face.calibration.FaceCalibrationFirestoreRepository
 import com.syntaxgenie.hfx05attendance.face.calibration.FaceRecognitionConfigMode
 import com.syntaxgenie.hfx05attendance.face.index.FaceTemplateIndexManager
@@ -167,9 +169,9 @@ class FaceScanActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 val sfaceModel = lifecycle.prepareSFaceModel()
                 val detector = YuNetFaceDetectorAdapter(model.absolutePath)
                 val extractor = SFaceFeatureExtractorAdapter(sfaceModel.absolutePath)
-                if (isManualCandidateFlowEnabled()) {
-                    debugCandidates = index.candidates()
-                }
+                // Ranking is required in both CALIBRATION and PRODUCTION. Only its
+                // post-ranking UI differs by mode.
+                debugCandidates = index.candidates()
                 Log.i(LOG_TAG, "FACE_INDEX_READY_FOR_SCAN employees=${index.employeeCount} templates=${index.templateCount}")
                 runOnUiThread {
                     if (generation != sessionGeneration || !surfaceReady || isFinishing || isDestroyed) {
@@ -188,7 +190,7 @@ class FaceScanActivity : AppCompatActivity(), SurfaceHolder.Callback {
                     if (outcome is FaceDetectionOutcome.Detected && outcome.faces.size == 1 && SFaceAlignmentMapper.validate(outcome.faces.single(), input.frame.width, input.frame.height) == null) {
                         latestCandidate = FaceFeatureExtractionInput(input.frame, outcome.faces.single(), input.rotationDegrees, input.mirrorHorizontally)
                     }
-                    if (isManualCandidateFlowEnabled() && outcome is FaceDetectionOutcome.Detected && outcome.faces.size == 1 &&
+                    if (outcome is FaceDetectionOutcome.Detected && outcome.faces.size == 1 &&
                         (debugCandidates.isNotEmpty() || FaceScanState.HoldStill == currentScanState) && System.nanoTime() - lastSfaceNanos > 1_000_000_000L) {
                         lastSfaceNanos = System.nanoTime()
                         val face = outcome.faces.single()
@@ -217,7 +219,9 @@ class FaceScanActivity : AppCompatActivity(), SurfaceHolder.Callback {
                                                 logAlignmentMatrices(legacyDebugQueries.take(3), debugQueries.take(3))
                                                 releaseHardware()
                                                 Log.i(LOG_TAG, "DEBUG_RANKING mean=${result?.score} median=${median?.score} top2=${top2?.score} second=${result?.secondBestScore} margin=${result?.margin}")
-                                                val configMode = FaceCalibrationFirestoreRepository.get(applicationContext).currentConfig().mode
+                                                val repository = FaceCalibrationFirestoreRepository.get(applicationContext)
+                                                val config = repository.currentConfig()
+                                                val configMode = config.mode
                                                 if (topCandidates.isNotEmpty() && !debugFlowOpened && isManualCandidateFlowEnabled()) {
                                                     debugFlowOpened = true
                                                     releaseHardware()
@@ -229,6 +233,18 @@ class FaceScanActivity : AppCompatActivity(), SurfaceHolder.Callback {
                                                         )
                                                         Log.i(LOG_TAG, "FACESCAN_FLOW_ACTIVITY_STARTED mode=$configMode")
                                                     }
+                                                } else if (topCandidates.isNotEmpty() && !debugFlowOpened) {
+                                                    debugFlowOpened = true
+                                                    val decision = FaceRecognitionDecisionPolicy.decide(topCandidates, config)
+                                                    val top = decision.top; val second = decision.second
+                                                    val margin = if (top != null && second != null) top.score - second.score else null
+                                                    Log.i(LOG_TAG, "FACE_DECISION_${decision.decision} topScore=${top?.score} secondScore=${second?.score} margin=$margin threshold=${config.matchThreshold} minMargin=${config.minMatchMargin} configVersion=${config.configVersion}")
+                                                    repository.recordLiveRecognition(FaceRecognitionTelemetryEvent(
+                                                        decision.decision.name, top?.employeeId, top?.score, second?.employeeId, second?.score, margin,
+                                                        config.matchThreshold ?: Double.NaN, config.minMatchMargin ?: Double.NaN, config.configVersion,
+                                                    ))
+                                                    releaseHardware()
+                                                    runOnUiThread { startActivityForResult(FaceRecognitionFlowActivity.productionIntent(this@FaceScanActivity, decision), REQUEST_FACE_FLOW) }
                                                 } else if (!BuildConfig.DEBUG) runOnUiThread { status.text = "Face recognition calibration required." }
                                         } else {
                                         accepted = employeeValidation?.addQuery(validation.activeGroup, extraction.feature)

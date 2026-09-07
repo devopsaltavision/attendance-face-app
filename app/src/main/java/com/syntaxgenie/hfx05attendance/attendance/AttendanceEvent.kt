@@ -11,6 +11,8 @@ data class AttendanceEvent(
     val attendanceRecordId: String? = null,
     val attendanceAction: String? = null,
     val serverTimestamp: String? = null,
+    val requestedAction: String? = null,
+    val biometricType: String? = null,
 ) {
     init {
         require(eventId.isNotBlank() && userId.isNotBlank() && employeeId.isNotBlank() && deviceTimestamp.isNotBlank())

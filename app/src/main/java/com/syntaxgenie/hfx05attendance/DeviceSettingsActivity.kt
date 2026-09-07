@@ -16,6 +16,7 @@ import androidx.core.content.FileProvider
 import com.google.android.material.appbar.MaterialToolbar
 import com.syntaxgenie.hfx05attendance.backend.config.DeviceConfigurationRepository
 import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
+import com.syntaxgenie.hfx05attendance.ui.AppSoundManager
 import com.syntaxgenie.hfx05attendance.update.ApplicationRelease
 import com.syntaxgenie.hfx05attendance.update.ApplicationUpdateService
 import java.io.File
@@ -52,6 +53,11 @@ class DeviceSettingsActivity : AppCompatActivity() {
         findViewById<Button>(R.id.saveDeviceIdButton).setOnClickListener {
             configuration.saveDeviceId(deviceId.text.toString())
             Toast.makeText(this, R.string.device_id_saved, Toast.LENGTH_SHORT).show()
+        }
+        val soundManager = AppSoundManager(applicationContext)
+        findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.soundFeedbackSwitch).apply {
+            isChecked = soundManager.isEnabled()
+            setOnCheckedChangeListener { _, enabled -> soundManager.setEnabled(enabled) }
         }
 
         updateService = ApplicationUpdateService(this)

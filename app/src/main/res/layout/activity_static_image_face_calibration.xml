@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:id="@+id/staticCalibrationRoot" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
+ <com.google.android.material.appbar.MaterialToolbar android:id="@+id/staticCalibrationToolbar" android:layout_width="match_parent" android:layout_height="?attr/actionBarSize" app:navigationIcon="?attr/homeAsUpIndicator" app:title="Static Image Face Calibration"/>
+ <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="20dp">
+  <TextView android:id="@+id/staticCalibrationStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Select an authorized test image."/>
+  <Button android:id="@+id/staticCalibrationSelect" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="16dp" android:text="SELECT IMAGE"/>
+  <Button android:id="@+id/staticCalibrationEvaluate" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="10dp" android:text="EVALUATE"/>
+  <TextView android:id="@+id/staticCalibrationScores" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp"/>
+  <RadioButton android:id="@+id/staticCalibrationKnown" android:layout_width="wrap_content" android:layout_height="wrap_content" android:checked="true" android:text="KNOWN EMPLOYEE"/>
+  <RadioButton android:id="@+id/staticCalibrationUnknown" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="UNKNOWN PERSON"/>
+  <RadioButton android:id="@+id/staticCalibrationAmbiguous" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="AMBIGUOUS TEST"/>
+  <Spinner android:id="@+id/staticCalibrationEmployee" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+  <Button android:id="@+id/staticCalibrationRecord" android:layout_width="match_parent" android:layout_height="56dp" android:layout_marginTop="16dp" android:enabled="false" android:text="RECORD CALIBRATION"/>
+ </LinearLayout>
+</LinearLayout>

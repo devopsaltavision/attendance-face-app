@@ -18,6 +18,9 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.syntaxgenie.hfx05attendance.fingerprint.LowLevelAccessProbe
 import com.syntaxgenie.hfx05attendance.face.camera.FaceCameraDiagnosticActivity
 import com.syntaxgenie.hfx05attendance.face.detection.diagnostics.FaceDetectionDiagnosticActivity
+import com.syntaxgenie.hfx05attendance.face.calibration.StaticImageFaceCalibrationActivity
+import com.syntaxgenie.hfx05attendance.face.calibration.FaceCalibrationFirestoreRepository
+import com.syntaxgenie.hfx05attendance.face.calibration.FaceRecognitionConfigMode
 import com.syntaxgenie.hfx05attendance.fingerprint.RawCaptureStorage
 import com.syntaxgenie.hfx05attendance.fingerprint.X05HardwareProbe
 import com.syntaxgenie.hfx05attendance.fingerprint.identification.IdentificationResult
@@ -96,6 +99,11 @@ class DiagnosticsActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.faceDetectionDiagnosticsButton).setOnClickListener {
             startActivity(Intent(this, FaceDetectionDiagnosticActivity::class.java))
+        }
+        findViewById<Button>(R.id.staticImageFaceCalibrationButton).apply {
+            val allowed = BuildConfig.DEBUG || FaceCalibrationFirestoreRepository.get(applicationContext).currentConfig().mode == FaceRecognitionConfigMode.CALIBRATION
+            visibility = if (allowed) View.VISIBLE else View.GONE
+            setOnClickListener { if (BuildConfig.DEBUG || FaceCalibrationFirestoreRepository.get(applicationContext).currentConfig().mode == FaceRecognitionConfigMode.CALIBRATION) startActivity(Intent(this@DiagnosticsActivity, StaticImageFaceCalibrationActivity::class.java)) }
         }
         activeButton.setOnClickListener { confirmActiveProbe() }
         copyButton.setOnClickListener { copyReport() }

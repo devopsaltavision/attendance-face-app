@@ -39,8 +39,10 @@ class AttendanceService(
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US).format(Date())
     },
 ) {
-    fun record(userId: String, employeeId: String): AttendanceRecordOutcome {
-        val event = AttendanceEvent(eventIdProvider(), userId, employeeId, timestampProvider())
+    fun record(userId: String, employeeId: String, action: String? = null, biometricType: String? = null): AttendanceRecordOutcome {
+        require(action == null || action in setOf("CHECK_IN", "CHECK_OUT"))
+        require(biometricType == null || biometricType in setOf("FINGERPRINT", "FACE"))
+        val event = AttendanceEvent(eventIdProvider(), userId, employeeId, timestampProvider(), requestedAction = action, biometricType = biometricType)
         repository.insertPending(event)
         val durableEvent = repository.get(event.eventId) ?: event
         return submitSingle(durableEvent)
@@ -99,6 +101,8 @@ class AttendanceService(
                 userId = event.userId,
                 employeeId = event.employeeId,
                 deviceTimestamp = event.deviceTimestamp,
+                action = event.requestedAction,
+                biometricType = event.biometricType,
             )).execute()
             if (!response.isSuccessful) {
                 val body = response.errorBody()?.string().orEmpty()
@@ -140,7 +144,7 @@ class AttendanceService(
         } else null
 
     private fun AttendanceEvent.toDto() = AttendanceEventDto(eventId, userId, employeeId,
-        deviceTimestamp = deviceTimestamp)
+        deviceTimestamp = deviceTimestamp, action = requestedAction, biometricType = biometricType)
 
     private companion object {
         const val MAX_BATCH_SIZE = 50

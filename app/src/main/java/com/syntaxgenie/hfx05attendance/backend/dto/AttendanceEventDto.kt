@@ -7,6 +7,8 @@ data class AttendanceEventDto(
     val source: String = "FINGERPRINT",
     val deviceTimestamp: String,
     val clientSequence: Long? = null,
+    val action: String? = null,
+    val biometricType: String? = null,
 )
 
 data class RecordAttendanceRequestDto(
@@ -17,6 +19,8 @@ data class RecordAttendanceRequestDto(
     val source: String = "FINGERPRINT",
     val deviceTimestamp: String,
     val clientSequence: Long? = null,
+    val action: String? = null,
+    val biometricType: String? = null,
 )
 
 data class RecordAttendanceResponseDto(

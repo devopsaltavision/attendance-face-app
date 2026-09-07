@@ -18,6 +18,8 @@ fun configuredValue(name: String): String =
         ?: ""
 
 fun quotedBuildConfig(value: String) = "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+fun configuredFaceScore(name: String, fallback: Double): String =
+    configuredValue(name).toDoubleOrNull()?.takeIf { it.isFinite() && it in 0.0..1.0 }?.toString() ?: fallback.toString()
 
 /**
  * Optional device-specific debug packaging. Without -PtargetAbi the debug APK remains universal
@@ -52,6 +54,10 @@ android {
             configuredValue("FINGERPRINT_EMULATOR").toBooleanStrictOrNull()?.toString() ?: "false")
         buildConfigField("boolean", "FINGERPRINT_GUIDE_MODE",
             configuredValue("FINGERPRINT_GUIDE_MODE").toBooleanStrictOrNull()?.toString() ?: "false")
+        buildConfigField("double", "FACE_MATCH_THRESHOLD", configuredFaceScore("FACE_MATCH_THRESHOLD", 0.55))
+        buildConfigField("double", "FACE_MIN_MATCH_MARGIN", configuredFaceScore("FACE_MIN_MATCH_MARGIN", 0.20))
+        buildConfigField("boolean", "FACE_ACCURACY_LOGGING_ENABLED",
+            configuredValue("FACE_ACCURACY_LOGGING_ENABLED").toBooleanStrictOrNull()?.toString() ?: "false")
 
         externalNativeBuild {
             cmake {
