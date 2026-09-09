@@ -14,9 +14,12 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.syntaxgenie.hfx05attendance.R
+import com.syntaxgenie.hfx05attendance.attendance.AttendanceRecordOutcome
 import com.syntaxgenie.hfx05attendance.attendance.AttendanceRecordStatus
 import com.syntaxgenie.hfx05attendance.attendance.AttendanceService
+import com.syntaxgenie.hfx05attendance.attendance.PendingAttendanceSyncScheduler
 import com.syntaxgenie.hfx05attendance.attendance.local.LocalAttendanceRepository
+import com.syntaxgenie.hfx05attendance.backend.BackendApiError
 import com.syntaxgenie.hfx05attendance.backend.FingerprintApiClient
 import com.syntaxgenie.hfx05attendance.backend.config.BackendEnvironmentConfig
 import com.syntaxgenie.hfx05attendance.backend.config.DeviceConfigurationRepository
@@ -46,6 +49,7 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
     private var calibrationEventRecorded = false
     private val candidateSelectionPolicy = FaceCandidateSelectionPolicy()
     private var productionDecision: FaceRecognitionDecision? = null
+    private var productionAmbiguousSeeds = emptyList<FaceCandidateSeed>()
     private val attendanceSubmitting = FaceAttendanceSubmissionGate()
     private val soundManager by lazy { AppSoundManager(applicationContext) }
     private var recognitionSoundPlayed = false
@@ -54,7 +58,8 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
     private val attendanceService by lazy {
         val environment = BackendEnvironmentConfig()
         AttendanceService(FingerprintApiClient(environment).create(), environment, deviceConfiguration::deviceId,
-            LocalAttendanceRepository(employeeDatabase.attendanceDao()), ::networkAvailable)
+            LocalAttendanceRepository(employeeDatabase.attendanceDao()), ::networkAvailable,
+            pendingSyncScheduler = { PendingAttendanceSyncScheduler.enqueue(applicationContext) })
     }
 
     override fun onCreate(state: Bundle?) {
@@ -67,6 +72,8 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
         val ids = intent.getStringArrayListExtra(EXTRA_CANDIDATE_IDS).orEmpty().take(3)
         val scores = intent.getDoubleArrayExtra(EXTRA_CANDIDATE_SCORES) ?: doubleArrayOf()
         productionDecision = intent.getStringExtra(EXTRA_PRODUCTION_DECISION)?.let { runCatching { FaceRecognitionDecision.valueOf(it) }.getOrNull() }
+        productionAmbiguousSeeds = intent.getStringArrayListExtra(EXTRA_AMBIGUOUS_CANDIDATE_IDS).orEmpty()
+            .mapIndexed { index, employeeId -> FaceCandidateSeed(employeeId, intent.getDoubleArrayExtra(EXTRA_AMBIGUOUS_CANDIDATE_SCORES)?.getOrElse(index) { Double.NEGATIVE_INFINITY } ?: Double.NEGATIVE_INFINITY) }
         if (productionDecision != null) {
             loadProductionResult(intent.getStringExtra(EXTRA_PRODUCTION_EMPLOYEE_ID))
             return
@@ -93,9 +100,10 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
     private fun loadProductionResult(employeeId: String?) {
         render(FaceFlowState.PROCESSING)
         Thread {
-            val employee = employeeId?.let {
-                LocalEmployeeDirectory(EmployeeDirectoryDatabase.create(applicationContext).employeeDao()).getAll().firstOrNull { row -> row.employeeId == it }
-            }
+            val employees = LocalEmployeeDirectory(EmployeeDirectoryDatabase.create(applicationContext).employeeDao()).getAll()
+            val employee = employeeId?.let { id -> employees.firstOrNull { row -> row.employeeId == id } }
+            val ambiguous = productionAmbiguousSeeds.mapNotNull { seed -> employees.firstOrNull { it.employeeId == seed.employeeId }
+                ?.let { FaceCandidate(it.employeeId, it.displayName, seed.score) } }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 val decision = productionDecision ?: FaceRecognitionDecision.UNKNOWN
@@ -104,6 +112,7 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
                     playRecognitionSoundOnce(AppSoundManager.Event.SUCCESS)
                     render(FaceFlowState.BEST_CANDIDATE)
                 } else {
+                    candidates = ambiguous
                     renderProductionResult(decision)
                 }
             }
@@ -120,7 +129,9 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
             }
             FaceRecognitionDecision.AMBIGUOUS -> {
                 playRecognitionSoundOnce(AppSoundManager.Event.WARNING)
-                renderRetryResult("Couldn't Confirm Identity", "More than one possible match was found.\nPlease look at the camera and try again.")
+                if (productionAmbiguousSeeds.size == AMBIGUOUS_SELECTION_COUNT &&
+                    candidates.size == AMBIGUOUS_SELECTION_COUNT) renderAmbiguousCandidates()
+                else renderRetryResult("Couldn't Confirm Identity", "More than one possible match was found.\nPlease look at the camera and try again.")
             }
         }
     }
@@ -147,14 +158,63 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
 
     private fun renderBestCandidate() {
         val employee = candidates.first()
-        content.addView(employeeCard(employee, R.drawable.face_profile_card_blue, showScore = false) {
-            selected = employee
-            if (productionDecision == null) recordCalibrationSelection(FaceCalibrationSelectionType.TOP_MATCH_ACCEPTED, employee)
-            render(FaceFlowState.ATTENDANCE_ACTION)
-        }, frameParams(Gravity.CENTER))
-        content.addView(actionButton("NOT YOU?", R.drawable.face_action_not_you, 64) {
+        val match = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(matchedEmployeeCard(employee) {
+                selected = employee
+                if (productionDecision == null) recordCalibrationSelection(FaceCalibrationSelectionType.TOP_MATCH_ACCEPTED, employee)
+                render(FaceFlowState.ATTENDANCE_ACTION)
+            })
+            addView(TextView(this@FaceRecognitionFlowActivity).apply {
+                text = "Tap your card to continue"
+                textSize = 18f
+                gravity = Gravity.CENTER
+                setTextColor(getColor(R.color.attendance_scanning))
+                setPadding(0, dp(16), 0, 0)
+            })
+        }
+        content.addView(match, frameParams(Gravity.CENTER))
+        content.addView(matchedSecondaryAction("NOT YOU?") {
             render(FaceFlowState.CANDIDATE_LIST)
         }, frameParams(Gravity.BOTTOM, bottomMargin = 8))
+    }
+
+    private fun matchedEmployeeCard(employee: FaceCandidate, action: () -> Unit): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = dp(156)
+            setPadding(dp(24), dp(20), dp(24), dp(20))
+            setBackgroundResource(R.drawable.face_profile_card_green)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Tap employee card for ${employee.employeeId} to continue"
+            setOnClickListener { action() }
+            addView(TextView(this@FaceRecognitionFlowActivity).apply {
+                text = employee.displayName
+                textSize = 22f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(getColor(R.color.attendance_text))
+            })
+            addView(TextView(this@FaceRecognitionFlowActivity).apply {
+                text = employee.employeeId
+                textSize = 20f
+                setTextColor(getColor(R.color.attendance_text_secondary))
+                setPadding(0, dp(10), 0, 0)
+            })
+        }
+
+    private fun matchedSecondaryAction(label: String, action: () -> Unit): TextView = TextView(this).apply {
+        text = label
+        textSize = 18f
+        setTypeface(typeface, Typeface.BOLD)
+        gravity = Gravity.CENTER
+        minimumHeight = dp(56)
+        setTextColor(getColor(R.color.attendance_text_secondary))
+        setBackgroundResource(R.drawable.biometric_surface_card)
+        isClickable = true
+        isFocusable = true
+        setOnClickListener { action() }
     }
 
     private fun renderCandidateList() {
@@ -217,6 +277,26 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
         content.addView(actionButton("SELECT YOUR EMPLOYEE NUMBER", R.drawable.face_action_not_you, 64) {
             render(FaceFlowState.CANDIDATE_LIST)
         }, frameParams(Gravity.BOTTOM, bottomMargin = 8))
+    }
+
+    private fun renderAmbiguousCandidates() {
+        val list = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(title("Couldn't Confirm Identity"))
+            addView(TextView(this@FaceRecognitionFlowActivity).apply {
+                text = "Select your profile"
+                textSize = 20f
+                setTextColor(getColor(R.color.attendance_text))
+                setPadding(0, 0, 0, dp(16))
+            })
+            candidates.forEachIndexed { index, employee ->
+                addView(matchedEmployeeCard(employee) {
+                    selected = employee
+                    render(FaceFlowState.ATTENDANCE_ACTION)
+                }, linearParams(topMargin = if (index == 0) 0 else 16))
+            }
+        }
+        content.addView(list, frameParams(Gravity.TOP))
     }
 
     private fun renderMessage(title: String, body: String) {
@@ -324,8 +404,12 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 attendanceSubmitting.release()
-                if (outcome?.status == AttendanceRecordStatus.SYNCED) renderAttendanceSuccess(employee, action, outcome.event.serverTimestamp ?: outcome.event.deviceTimestamp)
-                else renderAttendanceFailure(employee, action, checkIn, checkOut)
+                when {
+                    outcome?.status == AttendanceRecordStatus.SYNCED ->
+                        renderAttendanceSuccess(employee, action, outcome.event.serverTimestamp ?: outcome.event.deviceTimestamp)
+                    outcome.isOfflinePending() -> renderAttendanceOfflineSaved(action)
+                    else -> renderAttendanceFailure(employee, action, checkIn, checkOut)
+                }
             }
         }.apply { name = "face-attendance-record" }.start()
     }
@@ -338,12 +422,36 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
         Handler(Looper.getMainLooper()).postDelayed({ if (!isFinishing) returnHome() }, ATTENDANCE_RESULT_DURATION_MS)
     }
 
+    private fun renderAttendanceOfflineSaved(action: AttendanceAction) {
+        content.removeAllViews()
+        val message = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            addView(title(if (action == AttendanceAction.CHECK_IN) "CHECK IN SAVED" else "CHECK OUT SAVED").apply {
+                setTextColor(getColor(R.color.attendance_warning))
+            }, linearParams())
+            addView(TextView(this@FaceRecognitionFlowActivity).apply {
+                text = "No network connection.\nAttendance will sync automatically."
+                textSize = 20f
+                gravity = Gravity.CENTER
+                setTextColor(getColor(R.color.attendance_text))
+            }, linearParams(topMargin = 8))
+        }
+        content.addView(message, frameParams(Gravity.CENTER))
+        Handler(Looper.getMainLooper()).postDelayed({ if (!isFinishing) returnHome() }, ATTENDANCE_RESULT_DURATION_MS)
+    }
+
     private fun renderAttendanceFailure(employee: FaceCandidate, action: AttendanceAction, checkIn: TextView, checkOut: TextView) {
         soundManager.play(AppSoundManager.Event.ERROR)
+        content.removeAllViews()
         renderMessage("Attendance could not be recorded.", "Please try again.")
         checkIn.isEnabled = true; checkOut.isEnabled = true
         content.addView(actionButton("TRY AGAIN", R.drawable.face_action_not_you, 64) { render(FaceFlowState.ATTENDANCE_ACTION) }, frameParams(Gravity.BOTTOM, bottomMargin = 8))
     }
+
+    private fun AttendanceRecordOutcome?.isOfflinePending(): Boolean =
+        this?.status == AttendanceRecordStatus.PENDING &&
+            (error == BackendApiError.NETWORK_UNAVAILABLE || error == BackendApiError.NETWORK_FAILURE)
 
     private fun recordCalibrationSelection(type: FaceCalibrationSelectionType, selectedEmployee: FaceCandidate?) {
         if (calibrationEventRecorded) return
@@ -410,6 +518,9 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
         private const val STATE_RECOGNITION_SOUND_PLAYED = "faceRecognitionSoundPlayed"
         private const val EXTRA_PRODUCTION_DECISION = "faceProductionDecision"
         private const val EXTRA_PRODUCTION_EMPLOYEE_ID = "faceProductionEmployeeId"
+        private const val EXTRA_AMBIGUOUS_CANDIDATE_IDS = "faceAmbiguousCandidateIds"
+        private const val EXTRA_AMBIGUOUS_CANDIDATE_SCORES = "faceAmbiguousCandidateScores"
+        private const val AMBIGUOUS_SELECTION_COUNT = 2
         private const val ATTENDANCE_RESULT_DURATION_MS = 3_000L
         private val PROFILE_BACKGROUNDS = intArrayOf(
             R.drawable.face_profile_card_blue,
@@ -424,5 +535,7 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
         fun productionIntent(context: Context, result: FaceRecognitionDecisionResult) = Intent(context, FaceRecognitionFlowActivity::class.java)
             .putExtra(EXTRA_PRODUCTION_DECISION, result.decision.name)
             .putExtra(EXTRA_PRODUCTION_EMPLOYEE_ID, result.employeeId)
+            .putStringArrayListExtra(EXTRA_AMBIGUOUS_CANDIDATE_IDS, ArrayList(result.ambiguousStrongCandidates.map { it.employeeId }))
+            .putExtra(EXTRA_AMBIGUOUS_CANDIDATE_SCORES, result.ambiguousStrongCandidates.map { it.score }.toDoubleArray())
     }
 }

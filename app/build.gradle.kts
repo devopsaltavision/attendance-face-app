@@ -109,6 +109,7 @@ dependencies {
     implementation(libs.material)
     implementation(libs.sourceafis)
     implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.work.runtime)
     implementation(libs.retrofit)
     implementation(libs.retrofit.gson)
     implementation(libs.okhttp)

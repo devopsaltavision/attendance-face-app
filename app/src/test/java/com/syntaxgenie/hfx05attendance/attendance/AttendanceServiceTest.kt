@@ -83,6 +83,16 @@ class AttendanceServiceTest {
         assertEquals(0, server.requestCount)
     }
 
+    @Test fun networkPendingRecordSchedulesExistingQueueSync() {
+        var schedules = 0
+
+        service(networkAvailable = false, pendingSyncScheduler = { schedules++ })
+            .record(TEST_USER_ID, TEST_EMPLOYEE_ID, "CHECK_IN", "FACE")
+
+        assertEquals(1, schedules)
+        assertEquals(AttendanceSyncState.PENDING, repository.get("event-1")!!.syncState)
+    }
+
     @Test fun faceCheckInSendsExplicitActionAndBiometricType() {
         server.enqueue(successResponse("event-1", "CHECK_IN"))
         service().record(TEST_USER_ID, TEST_EMPLOYEE_ID, "CHECK_IN", "FACE")
@@ -130,6 +140,20 @@ class AttendanceServiceTest {
         assertEquals("event-1", event["attendanceEventId"].asString)
         assertEquals(1, result.synced)
         assertEquals(AttendanceSyncState.SYNCED, repository.get("event-1")!!.syncState)
+    }
+
+    @Test fun pendingFaceRetryRetainsOriginalTimestampActionAndBiometricType() {
+        service(networkAvailable = false).record(TEST_USER_ID, TEST_EMPLOYEE_ID, "CHECK_OUT", "FACE")
+        server.enqueue(bulkResponse("event-1", "RECORDED", "CHECK_OUT"))
+
+        service().syncPendingAttendance()
+        val event = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
+            .getAsJsonArray("events").single().asJsonObject
+
+        assertEquals("event-1", event["attendanceEventId"].asString)
+        assertEquals(TEST_TIMESTAMP, event["deviceTimestamp"].asString)
+        assertEquals("CHECK_OUT", event["action"].asString)
+        assertEquals("FACE", event["biometricType"].asString)
     }
 
     @Test fun bulkMarksOnlyRecordedAndAlreadyRecordedResultsSynced() {
@@ -226,9 +250,10 @@ class AttendanceServiceTest {
         networkAvailable: Boolean = true,
         eventIdProvider: () -> String = { "event-${nextId++}" },
         api: FingerprintApiService = FingerprintApiClient(config()).create(),
+        pendingSyncScheduler: (() -> Unit)? = null,
     ) = AttendanceService(api, config(), { TEST_DEVICE_ID }, repository,
         networkAvailable = { networkAvailable }, eventIdProvider = eventIdProvider,
-        timestampProvider = { TEST_TIMESTAMP })
+        timestampProvider = { TEST_TIMESTAMP }, pendingSyncScheduler = pendingSyncScheduler)
 
     private fun config() = BackendEnvironmentConfig(server.url("/").toString(), "TEST_DEVICE_API_KEY", "Test")
     private fun successResponse(eventId: String, action: String) = MockResponse().setResponseCode(200).setBody("""{

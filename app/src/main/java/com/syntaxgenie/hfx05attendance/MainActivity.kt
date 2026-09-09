@@ -21,6 +21,7 @@ import com.syntaxgenie.hfx05attendance.attendance.AttendanceHomeState
 import com.syntaxgenie.hfx05attendance.attendance.AttendanceRecordOutcome
 import com.syntaxgenie.hfx05attendance.attendance.AttendanceRecordStatus
 import com.syntaxgenie.hfx05attendance.attendance.AttendanceService
+import com.syntaxgenie.hfx05attendance.attendance.PendingAttendanceSyncScheduler
 import com.syntaxgenie.hfx05attendance.attendance.local.LocalAttendanceRepository
 import com.syntaxgenie.hfx05attendance.backend.FingerprintApiClient
 import com.syntaxgenie.hfx05attendance.backend.config.BackendEnvironmentConfig
@@ -67,7 +68,8 @@ class MainActivity : AppCompatActivity() {
     private val attendanceService by lazy {
         val environment = BackendEnvironmentConfig()
         AttendanceService(FingerprintApiClient(environment).create(), environment,
-            deviceConfiguration::deviceId, LocalAttendanceRepository(employeeDatabase.attendanceDao()), ::networkAvailable)
+            deviceConfiguration::deviceId, LocalAttendanceRepository(employeeDatabase.attendanceDao()), ::networkAvailable,
+            pendingSyncScheduler = { PendingAttendanceSyncScheduler.enqueue(applicationContext) })
     }
     private val scanWorkerRunning = AtomicBoolean(false)
     @Volatile private var scanActive = false

@@ -10,6 +10,8 @@ data class FaceRecognitionDecisionResult(
     val top: FaceCandidateSeed?,
     val second: FaceCandidateSeed?,
     val configVersion: Int?,
+    /** Ranked candidates individually meeting the current threshold; exposed only for AMBIGUOUS manual selection. */
+    val ambiguousStrongCandidates: List<FaceCandidateSeed> = emptyList(),
 )
 
 /** Pure authorization boundary: only MATCHED can expose an employee id. */
@@ -25,6 +27,7 @@ object FaceRecognitionDecisionPolicy {
             second != null && top.score - second.score < margin -> FaceRecognitionDecision.AMBIGUOUS
             else -> FaceRecognitionDecision.MATCHED
         }
-        return FaceRecognitionDecisionResult(decision, if (decision == FaceRecognitionDecision.MATCHED) top?.employeeId else null, top, second, config.configVersion)
+        val strongCandidates = if (decision == FaceRecognitionDecision.AMBIGUOUS) values.filter { it.score >= threshold } else emptyList()
+        return FaceRecognitionDecisionResult(decision, if (decision == FaceRecognitionDecision.MATCHED) top?.employeeId else null, top, second, config.configVersion, strongCandidates)
     }
 }

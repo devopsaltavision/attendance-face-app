@@ -1,5 +1,6 @@
 package com.syntaxgenie.hfx05attendance.attendance
 
+import android.util.Log
 import com.syntaxgenie.hfx05attendance.backend.BackendApiError
 import com.syntaxgenie.hfx05attendance.backend.BackendErrorMapper
 import com.syntaxgenie.hfx05attendance.backend.FingerprintApiService
@@ -38,6 +39,7 @@ class AttendanceService(
     private val timestampProvider: () -> String = {
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US).format(Date())
     },
+    private val pendingSyncScheduler: (() -> Unit)? = null,
 ) {
     fun record(userId: String, employeeId: String, action: String? = null, biometricType: String? = null): AttendanceRecordOutcome {
         require(action == null || action in setOf("CHECK_IN", "CHECK_OUT"))
@@ -45,7 +47,9 @@ class AttendanceService(
         val event = AttendanceEvent(eventIdProvider(), userId, employeeId, timestampProvider(), requestedAction = action, biometricType = biometricType)
         repository.insertPending(event)
         val durableEvent = repository.get(event.eventId) ?: event
-        return submitSingle(durableEvent)
+        return submitSingle(durableEvent).also { outcome ->
+            if (outcome.isNetworkPending()) pendingSyncScheduler?.invoke()
+        }
     }
 
     fun syncPendingAttendance(limit: Int = MAX_BATCH_SIZE): AttendanceSyncSummary {
@@ -107,6 +111,7 @@ class AttendanceService(
             if (!response.isSuccessful) {
                 val body = response.errorBody()?.string().orEmpty()
                 val code = Regex("FPA-\\d{3}").find(body)?.value
+                logHttpFailure(response.code(), code, body)
                 AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING,
                     BackendErrorMapper.fromHttp(response.code(), code))
             } else {
@@ -128,14 +133,25 @@ class AttendanceService(
                     AttendanceRecordOutcome(repository.get(event.eventId) ?: event,
                         AttendanceRecordStatus.SYNCED)
                 } else {
+                    logWarning("Attendance response status=${value.status} message=${value.message.orEmpty()}")
                     AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING,
                         if (value.status == FAILED) BackendApiError.SERVER_FAILURE
                         else BackendApiError.INVALID_ATTENDANCE_EVENT)
                 }
             }
         } catch (error: Throwable) {
+            logWarning("Attendance request failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}")
             AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING, BackendErrorMapper.fromThrowable(error))
         }
+    }
+
+    private fun logHttpFailure(status: Int, code: String?, body: String) {
+        val message = Regex("\\\"message\\\"\\s*:\\s*\\\"([^\\\"]*)").find(body)?.groupValues?.getOrNull(1).orEmpty()
+        logWarning("Attendance HTTP failure status=$status code=${code.orEmpty()} message=$message")
+    }
+
+    private fun logWarning(message: String) {
+        runCatching { Log.w(TAG, message) }
     }
 
     private fun configurationError(): BackendApiError? =
@@ -146,7 +162,12 @@ class AttendanceService(
     private fun AttendanceEvent.toDto() = AttendanceEventDto(eventId, userId, employeeId,
         deviceTimestamp = deviceTimestamp, action = requestedAction, biometricType = biometricType)
 
+    private fun AttendanceRecordOutcome.isNetworkPending(): Boolean =
+        status == AttendanceRecordStatus.PENDING &&
+            (error == BackendApiError.NETWORK_UNAVAILABLE || error == BackendApiError.NETWORK_FAILURE)
+
     private companion object {
+        const val TAG = "AttendanceService"
         const val MAX_BATCH_SIZE = 50
         const val RECORDED = "RECORDED"
         const val ALREADY_RECORDED = "ALREADY_RECORDED"
