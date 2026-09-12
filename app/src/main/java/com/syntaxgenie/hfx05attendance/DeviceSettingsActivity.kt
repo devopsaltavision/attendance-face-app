@@ -17,6 +17,7 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.syntaxgenie.hfx05attendance.backend.config.DeviceConfigurationRepository
 import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
 import com.syntaxgenie.hfx05attendance.ui.AppSoundManager
+import com.syntaxgenie.hfx05attendance.biometric.CurrentBiometricRuntimePolicy
 import com.syntaxgenie.hfx05attendance.update.ApplicationRelease
 import com.syntaxgenie.hfx05attendance.update.ApplicationUpdateService
 import java.io.File
@@ -59,6 +60,7 @@ class DeviceSettingsActivity : AppCompatActivity() {
             isChecked = soundManager.isEnabled()
             setOnCheckedChangeListener { _, enabled -> soundManager.setEnabled(enabled) }
         }
+        configureBiometricMethodSettings()
 
         updateService = ApplicationUpdateService(this)
         checkForUpdateButton = findViewById(R.id.checkForUpdateButton)
@@ -73,6 +75,32 @@ class DeviceSettingsActivity : AppCompatActivity() {
         checkForUpdateButton.setOnClickListener { checkForUpdate() }
         downloadUpdateButton.setOnClickListener { downloadUpdate() }
         installUpdateButton.setOnClickListener { installVerifiedUpdate() }
+    }
+
+    private fun configureBiometricMethodSettings() {
+        val face = findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.faceRecognitionSwitch)
+        val fingerprint = findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.fingerprintRecognitionSwitch)
+        val message = findViewById<TextView>(R.id.biometricMethodMessage)
+        var binding = true
+        fun showBlocked() {
+            message.setText(R.string.biometric_method_required)
+            message.visibility = View.VISIBLE
+        }
+        face.isChecked = CurrentBiometricRuntimePolicy.isFaceEnabled(this)
+        fingerprint.isChecked = CurrentBiometricRuntimePolicy.isFingerprintEnabled(this)
+        binding = false
+        face.setOnCheckedChangeListener { _, enabled ->
+            if (binding) return@setOnCheckedChangeListener
+            if (!CurrentBiometricRuntimePolicy.setFaceEnabled(this, enabled)) {
+                binding = true; face.isChecked = true; binding = false; showBlocked()
+            } else message.visibility = View.GONE
+        }
+        fingerprint.setOnCheckedChangeListener { _, enabled ->
+            if (binding) return@setOnCheckedChangeListener
+            if (!CurrentBiometricRuntimePolicy.setFingerprintEnabled(this, enabled)) {
+                binding = true; fingerprint.isChecked = true; binding = false; showBlocked()
+            } else message.visibility = View.GONE
+        }
     }
 
     private fun checkForUpdate() {

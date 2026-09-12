@@ -9,6 +9,11 @@
     <color name="attendance_success_foreground">#FFFFFFFF</color>
     <color name="attendance_failure">#FFB91C1C</color>
     <color name="attendance_warning">#FFD97706</color>
+    <color name="attendance_warning_text">#FF9A6700</color>
+    <color name="attendance_success_background">#FFE7F6EC</color>
+    <color name="attendance_warning_background">#FFFFF3D8</color>
+    <color name="attendance_failure_background">#FFFDE8E8</color>
+    <color name="attendance_info_background">#FFE6F1EC</color>
     <color name="attendance_surface">#FFFFFFFF</color>
     <color name="attendance_surface_variant">#FFE6EEEA</color>
     <color name="attendance_text">#FF20302A</color>

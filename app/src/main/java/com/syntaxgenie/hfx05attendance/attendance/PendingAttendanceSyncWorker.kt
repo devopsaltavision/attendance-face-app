@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import androidx.work.Constraints
+import androidx.work.BackoffPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
@@ -16,6 +17,7 @@ import com.syntaxgenie.hfx05attendance.backend.FingerprintApiClient
 import com.syntaxgenie.hfx05attendance.backend.config.BackendEnvironmentConfig
 import com.syntaxgenie.hfx05attendance.backend.config.DeviceConfigurationRepository
 import com.syntaxgenie.hfx05attendance.employee.local.EmployeeDirectoryDatabase
+import java.util.concurrent.TimeUnit
 
 class PendingAttendanceSyncWorker(
     appContext: Context,
@@ -33,16 +35,11 @@ class PendingAttendanceSyncWorker(
         )
         while (true) {
             val summary = service.syncPendingAttendance()
-            when (summary.error) {
-                BackendApiError.NETWORK_UNAVAILABLE,
-                BackendApiError.NETWORK_FAILURE -> return Result.retry()
-                null -> {
-                    // Continue only after a completely successful FIFO batch. A remaining
-                    // rejected event is deliberately left pending without network retry.
-                    if (summary.attempted == 0 || summary.synced != summary.attempted) return Result.success()
-                }
-                else -> return Result.success()
+            if (summary.error != null) {
+                return if (summary.error.retryable || summary.error == BackendApiError.INVALID_RESPONSE ||
+                    summary.error == BackendApiError.UNKNOWN) Result.retry() else Result.success()
             }
+            if (summary.attempted == 0) return Result.success()
         }
     }
 
@@ -60,9 +57,10 @@ object PendingAttendanceSyncScheduler {
     fun enqueue(context: Context) {
         val request = OneTimeWorkRequestBuilder<PendingAttendanceSyncWorker>()
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
         WorkManager.getInstance(context.applicationContext)
-            .enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.KEEP, request)
+            .enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
     }
 
     fun enqueueIfPending(context: Context) {

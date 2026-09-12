@@ -41,6 +41,8 @@ import com.syntaxgenie.hfx05attendance.fingerprint.scanner.ScannerResult
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.ScannerError
 import com.syntaxgenie.hfx05attendance.fingerprint.scanner.hfx05.Hfx05FingerprintScanner
 import com.syntaxgenie.hfx05attendance.ui.FingerprintVisualView
+import com.syntaxgenie.hfx05attendance.ui.SemanticResultView
+import com.syntaxgenie.hfx05attendance.ui.AppSoundManager
 import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
 import com.syntaxgenie.hfx05attendance.face.scan.FaceScanActivity
 import com.syntaxgenie.hfx05attendance.attendance.AttendanceActivity
@@ -69,7 +71,7 @@ class MainActivity : AppCompatActivity() {
         val environment = BackendEnvironmentConfig()
         AttendanceService(FingerprintApiClient(environment).create(), environment,
             deviceConfiguration::deviceId, LocalAttendanceRepository(employeeDatabase.attendanceDao()), ::networkAvailable,
-            pendingSyncScheduler = { PendingAttendanceSyncScheduler.enqueue(applicationContext) })
+            pendingSyncScheduler = { PendingAttendanceSyncScheduler.enqueueIfPending(applicationContext) })
     }
     private val scanWorkerRunning = AtomicBoolean(false)
     @Volatile private var scanActive = false
@@ -86,10 +88,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var timeText: TextView
     private lateinit var dateText: TextView
     private lateinit var visual: FingerprintVisualView
-    private lateinit var titleText: TextView
-    private lateinit var instructionText: TextView
-    private lateinit var detailText: TextView
-    private lateinit var syncStatusText: TextView
+    private lateinit var resultView: SemanticResultView
+    private val soundManager by lazy { AppSoundManager(applicationContext) }
     private var emulatorEmployees: List<EmployeeRecord> = emptyList()
     private val clockTick = object : Runnable {
         override fun run() {
@@ -112,10 +112,7 @@ class MainActivity : AppCompatActivity() {
         timeText = findViewById(R.id.currentTime)
         dateText = findViewById(R.id.currentDate)
         visual = findViewById(R.id.fingerprintVisual)
-        titleText = findViewById(R.id.attendanceStatusTitle)
-        instructionText = findViewById(R.id.attendanceInstruction)
-        detailText = findViewById(R.id.attendanceDetail)
-        syncStatusText = findViewById(R.id.homeSyncStatus)
+        resultView = findViewById(R.id.attendanceResult)
         configureEmulatorControls()
         findViewById<ImageButton>(R.id.adminButton).setOnClickListener {
             val destination = if (FirebaseAuth.getInstance().currentUser == null) {
@@ -126,6 +123,10 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, destination))
         }
         findViewById<Button>(R.id.scanFaceButton).setOnClickListener {
+            if (!CurrentBiometricRuntimePolicy.isFaceEnabled(this)) {
+                render(AttendanceHomeModel(AttendanceHomeState.WARNING, "Face Recognition is disabled", "Please use Fingerprint or contact an administrator."))
+                return@setOnClickListener
+            }
             startActivity(Intent(this, FaceScanActivity::class.java).apply {
                 if (BuildConfig.DEBUG) putExtra(FaceScanActivity.EXTRA_DEBUG_IDENTIFICATION, true)
             })
@@ -138,11 +139,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        PendingAttendanceSyncScheduler.enqueueIfPending(applicationContext)
         handler.post(clockTick)
         scanActive = true
         scanGeneration++
         render(defaultReadyModel())
-        if (CurrentBiometricRuntimePolicy.mode != BiometricRuntimeMode.FACE_ONLY &&
+        if (CurrentBiometricRuntimePolicy.isFingerprintEnabled(this) &&
             !BuildConfig.FINGERPRINT_EMULATOR && !BuildConfig.FINGERPRINT_GUIDE_MODE) startScanWorker()
     }
 
@@ -154,8 +156,13 @@ class MainActivity : AppCompatActivity() {
         super.onStop()
     }
 
+    override fun onDestroy() {
+        soundManager.release()
+        super.onDestroy()
+    }
+
     private fun startScanWorker() {
-        if (CurrentBiometricRuntimePolicy.mode == BiometricRuntimeMode.FACE_ONLY) return
+        if (!CurrentBiometricRuntimePolicy.isFingerprintEnabled(this)) return
         if (BuildConfig.FINGERPRINT_EMULATOR || BuildConfig.FINGERPRINT_GUIDE_MODE ||
             !scanActive || !scanWorkerRunning.compareAndSet(false, true)) return
         val generation = scanGeneration
@@ -228,6 +235,7 @@ class MainActivity : AppCompatActivity() {
     ) = runOnUiThread {
         if (!isCurrentScan(generation)) return@runOnUiThread
         if (outcome.status == AttendanceRecordStatus.DUPLICATE_IGNORED) {
+            soundManager.play(AppSoundManager.Event.WARNING)
             render(AttendanceHomeModel(
                 AttendanceHomeState.WARNING,
                 getString(R.string.attendance_already_recorded),
@@ -239,6 +247,7 @@ class MainActivity : AppCompatActivity() {
             return@runOnUiThread
         }
         val synced = outcome.status == AttendanceRecordStatus.SYNCED
+        soundManager.play(AppSoundManager.Event.SUCCESS)
         render(AttendanceHomeModel(
             AttendanceHomeState.SUCCESS,
             getString(if (synced) R.string.attendance_recorded_synced else R.string.attendance_recorded_pending,
@@ -253,6 +262,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showScanResult(generation: Int, state: AttendanceHomeState, message: String) = runOnUiThread {
         if (!isCurrentScan(generation)) return@runOnUiThread
+        soundManager.play(if (state == AttendanceHomeState.WARNING) AppSoundManager.Event.WARNING else AppSoundManager.Event.ERROR)
         render(AttendanceHomeModel(state, message, getString(R.string.place_finger_on_sensor)))
         handler.postDelayed(resetReady, SUCCESS_DURATION_MS)
     }
@@ -260,6 +270,7 @@ class MainActivity : AppCompatActivity() {
     private fun showTerminalScannerError(generation: Int, message: String) = runOnUiThread {
         if (!isCurrentScan(generation)) return@runOnUiThread
         handler.removeCallbacks(resetReady)
+        soundManager.play(AppSoundManager.Event.ERROR)
         render(AttendanceHomeModel(AttendanceHomeState.FAILURE, message))
     }
 
@@ -275,11 +286,7 @@ class MainActivity : AppCompatActivity() {
 
     fun render(model: AttendanceHomeModel) {
         handler.removeCallbacks(resetReady)
-        val background = when (model.state) {
-            AttendanceHomeState.SUCCESS -> R.color.attendance_success
-            else -> R.color.attendance_ready_background
-        }
-        root.setBackgroundColor(ContextCompat.getColor(this, background))
+        root.setBackgroundColor(ContextCompat.getColor(this, R.color.attendance_ready_background))
         visual.render(when (model.state) {
             AttendanceHomeState.READY -> FingerprintVisualView.State.READY
             AttendanceHomeState.SCANNING -> FingerprintVisualView.State.SCANNING
@@ -287,14 +294,15 @@ class MainActivity : AppCompatActivity() {
             AttendanceHomeState.FAILURE -> FingerprintVisualView.State.ERROR
             AttendanceHomeState.WARNING -> FingerprintVisualView.State.WARNING
         })
-        titleText.text = model.title
-        instructionText.text = model.instruction.orEmpty()
-        detailText.text = listOfNotNull(model.employeeName, model.employeeId,
+        val detail = listOfNotNull(model.instruction, model.employeeName, model.employeeId,
             model.attendanceActionLabel, model.attendanceTimeLabel).joinToString("\n")
-        syncStatusText.visibility = if (syncConfigured) View.GONE else View.VISIBLE
-        val textColor = ContextCompat.getColor(this,
-            if (model.state == AttendanceHomeState.SUCCESS) R.color.white else R.color.attendance_text)
-        listOf(timeText, dateText, titleText, instructionText, detailText).forEach { it.setTextColor(textColor) }
+        val kind = when (model.state) {
+            AttendanceHomeState.SUCCESS -> SemanticResultView.Kind.SUCCESS
+            AttendanceHomeState.WARNING -> SemanticResultView.Kind.WARNING
+            AttendanceHomeState.FAILURE -> SemanticResultView.Kind.ERROR
+            else -> SemanticResultView.Kind.INFO
+        }
+        resultView.show(kind, model.title, detail)
     }
 
     private fun defaultReadyModel() = AttendanceHomeModel(
@@ -337,6 +345,6 @@ class MainActivity : AppCompatActivity() {
 
     private companion object {
         const val MILLIS_PER_MINUTE = 60_000L
-        const val SUCCESS_DURATION_MS = 2_000L
+        const val SUCCESS_DURATION_MS = 3_500L
     }
 }

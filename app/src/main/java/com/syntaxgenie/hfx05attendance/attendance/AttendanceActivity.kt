@@ -26,7 +26,7 @@ class AttendanceActivity : AppCompatActivity() {
         val environment = BackendEnvironmentConfig()
         AttendanceService(FingerprintApiClient(environment).create(), environment,
             deviceConfiguration::deviceId, LocalAttendanceRepository(database.attendanceDao()), ::networkAvailable,
-            pendingSyncScheduler = { PendingAttendanceSyncScheduler.enqueue(applicationContext) })
+            pendingSyncScheduler = { PendingAttendanceSyncScheduler.enqueueIfPending(applicationContext) })
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

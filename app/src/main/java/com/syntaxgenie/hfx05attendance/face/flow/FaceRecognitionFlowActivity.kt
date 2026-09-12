@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.View
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -32,6 +33,8 @@ import com.syntaxgenie.hfx05attendance.face.calibration.FaceCalibrationSelection
 import com.syntaxgenie.hfx05attendance.face.calibration.FaceRecognitionConfigMode
 import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
 import com.syntaxgenie.hfx05attendance.ui.AppSoundManager
+import com.syntaxgenie.hfx05attendance.ui.SemanticResultView
+import com.google.android.material.progressindicator.CircularProgressIndicator
 import kotlin.math.roundToInt
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -40,7 +43,14 @@ internal class FaceAttendanceSubmissionGate {
     private val busy = AtomicBoolean(false)
     fun tryAcquire() = busy.compareAndSet(false, true)
     fun release() = busy.set(false)
+    fun isBusy() = busy.get()
 }
+
+private data class AttendanceActionControl(
+    val root: LinearLayout,
+    val label: TextView,
+    val spinner: CircularProgressIndicator,
+)
 
 class FaceRecognitionFlowActivity : AppCompatActivity() {
     private lateinit var content: FrameLayout
@@ -60,7 +70,7 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
         val environment = BackendEnvironmentConfig()
         AttendanceService(FingerprintApiClient(environment).create(), environment, deviceConfiguration::deviceId,
             LocalAttendanceRepository(employeeDatabase.attendanceDao()), ::networkAvailable,
-            pendingSyncScheduler = { PendingAttendanceSyncScheduler.enqueue(applicationContext) })
+            pendingSyncScheduler = { PendingAttendanceSyncScheduler.enqueueIfPending(applicationContext) })
     }
 
     override fun onCreate(state: Bundle?) {
@@ -260,17 +270,32 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
             return
         }
         content.addView(employeeCard(employee, R.drawable.face_profile_card_blue, showScore = false) {}, frameParams(Gravity.TOP))
-        lateinit var checkIn: TextView
-        lateinit var checkOut: TextView
+        lateinit var checkIn: AttendanceActionControl
+        lateinit var checkOut: AttendanceActionControl
+        lateinit var cancel: TextView
+        val submissionMessage = TextView(this).apply {
+            text = "Please wait while attendance is being recorded."
+            textSize = 16f
+            gravity = Gravity.CENTER
+            setTextColor(getColor(R.color.attendance_text_secondary))
+            visibility = View.GONE
+            setPadding(0, dp(12), 0, 0)
+        }
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            checkIn = actionButton("CHECK IN", R.drawable.face_action_check_in, 72) { attendanceAction(AttendanceAction.CHECK_IN, checkIn, checkOut) }
-            checkOut = actionButton("CHECK OUT", R.drawable.face_action_check_out, 72) { attendanceAction(AttendanceAction.CHECK_OUT, checkIn, checkOut) }
-            addView(checkIn, linearParams())
-            addView(checkOut, linearParams(topMargin = 16))
+            checkIn = attendanceActionButton("CHECK IN", R.drawable.face_action_check_in) {
+                attendanceAction(AttendanceAction.CHECK_IN, checkIn, checkOut, cancel, submissionMessage)
+            }
+            checkOut = attendanceActionButton("CHECK OUT", R.drawable.face_action_check_out) {
+                attendanceAction(AttendanceAction.CHECK_OUT, checkIn, checkOut, cancel, submissionMessage)
+            }
+            addView(checkIn.root, linearParams())
+            addView(checkOut.root, linearParams(topMargin = 16))
+            addView(submissionMessage, linearParams())
         }
         content.addView(actions, frameParams(Gravity.CENTER))
-        content.addView(actionButton("CANCEL", R.drawable.face_action_cancel, 64) { returnHome() }, frameParams(Gravity.BOTTOM, bottomMargin = 8))
+        cancel = actionButton("CANCEL", R.drawable.face_action_cancel, 64) { returnHome() }
+        content.addView(cancel, frameParams(Gravity.BOTTOM, bottomMargin = 8))
     }
 
     private fun renderAmbiguous() {
@@ -304,13 +329,15 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
         val message = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            if (title.isNotBlank()) addView(title(title), linearParams())
-            addView(TextView(this@FaceRecognitionFlowActivity).apply {
-                text = body
-                textSize = 20f
-                gravity = Gravity.CENTER
-                setTextColor(getColor(R.color.attendance_text))
-            }, linearParams(topMargin = 8))
+            addView(SemanticResultView(this@FaceRecognitionFlowActivity).apply {
+                val kind = when {
+                    title.contains("Not Recognized", true) || title.contains("Unavailable", true) ||
+                        title.contains("could not", true) || title.contains("Cannot", true) -> SemanticResultView.Kind.ERROR
+                    title.contains("Confirm", true) || title.contains("No Face", true) -> SemanticResultView.Kind.WARNING
+                    else -> SemanticResultView.Kind.INFO
+                }
+                show(kind, title.ifBlank { "Please wait" }, body)
+            })
         }
         content.addView(message, frameParams(Gravity.CENTER))
     }
@@ -368,6 +395,53 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
             setOnClickListener { action() }
         }
 
+    private fun attendanceActionButton(label: String, background: Int, action: () -> Unit): AttendanceActionControl {
+        val spinner = CircularProgressIndicator(this).apply {
+            visibility = View.GONE
+            isIndeterminate = true
+            setIndicatorColor(getColor(R.color.white))
+            trackColor = getColor(android.R.color.transparent)
+        }
+        val labelView = TextView(this).apply {
+            text = label
+            textSize = 22f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(getColor(R.color.white))
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val root = LinearLayout(this).apply {
+            gravity = Gravity.CENTER
+            minimumHeight = dp(72)
+            setPadding(dp(20), 0, dp(20), 0)
+            setBackgroundResource(background)
+            isClickable = true
+            isFocusable = true
+            contentDescription = label
+            setOnClickListener { action() }
+            addView(spinner, LinearLayout.LayoutParams(dp(28), dp(28)).apply { marginEnd = dp(14) })
+            addView(labelView)
+        }
+        return AttendanceActionControl(root, labelView, spinner)
+    }
+
+    private fun setAttendanceLoading(
+        action: AttendanceAction,
+        selected: AttendanceActionControl,
+        other: AttendanceActionControl,
+        cancel: TextView,
+        message: TextView,
+    ) {
+        selected.label.text = if (action == AttendanceAction.CHECK_IN) "Checking In..." else "Checking Out..."
+        selected.spinner.visibility = View.VISIBLE
+        selected.root.isEnabled = false
+        selected.root.isClickable = false
+        other.root.isEnabled = false
+        other.root.isClickable = false
+        cancel.isEnabled = false
+        cancel.isClickable = false
+        message.visibility = View.VISIBLE
+    }
+
     private fun title(value: String) = TextView(this).apply {
         text = value
         textSize = 24f
@@ -395,13 +469,20 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
         return manager.getNetworkCapabilities(network)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
     }
 
-    private fun attendanceAction(action: AttendanceAction, checkIn: TextView, checkOut: TextView) {
+    private fun attendanceAction(
+        action: AttendanceAction,
+        checkIn: AttendanceActionControl,
+        checkOut: AttendanceActionControl,
+        cancel: TextView,
+        submissionMessage: TextView,
+    ) {
         val employee = selected ?: return
         if (!attendanceSubmitting.tryAcquire()) return
-        checkIn.isEnabled = false; checkOut.isEnabled = false
+        setAttendanceLoading(action, if (action == AttendanceAction.CHECK_IN) checkIn else checkOut,
+            if (action == AttendanceAction.CHECK_IN) checkOut else checkIn, cancel, submissionMessage)
         Thread {
             val record = LocalEmployeeDirectory(employeeDatabase.employeeDao()).getAll().firstOrNull { it.employeeId == employee.employeeId }
-            val outcome = record?.let { attendanceService.record(it.userId, it.employeeId, action.name, "FACE") }
+            val outcome = record?.let { attendanceService.record(it.userId, it.employeeId, action.name, "FACE", "FACE") }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 attendanceSubmitting.release()
@@ -409,9 +490,11 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
                     outcome?.status == AttendanceRecordStatus.SYNCED ->
                         renderAttendanceSuccess(employee, action, outcome.event.serverTimestamp ?: outcome.event.deviceTimestamp)
                     outcome.isOfflinePending() -> renderAttendanceOfflineSaved(action)
+                    outcome?.status == AttendanceRecordStatus.DUPLICATE_IGNORED ->
+                        renderAttendanceWarning("Attendance already recorded", "Please try again later.")
                     outcome?.status == AttendanceRecordStatus.REJECTED ->
                         renderAttendanceRejected(outcome.businessRejection)
-                    else -> renderAttendanceFailure(employee, action, checkIn, checkOut)
+                    else -> renderAttendanceFailure()
                 }
             }
         }.apply { name = "face-attendance-record" }.start()
@@ -419,48 +502,49 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
 
     private fun renderAttendanceSuccess(employee: FaceCandidate, action: AttendanceAction, time: String) {
         soundManager.play(AppSoundManager.Event.SUCCESS)
-        content.removeAllViews()
-        content.addView(title(if (action == AttendanceAction.CHECK_IN) "CHECK IN SUCCESSFUL" else "CHECK OUT SUCCESSFUL"), frameParams(Gravity.TOP))
-        content.addView(employeeCard(employee, R.drawable.face_profile_card_blue, showScore = false) {}, frameParams(Gravity.CENTER))
+        renderFinalResult(
+            SemanticResultView.Kind.SUCCESS,
+            if (action == AttendanceAction.CHECK_IN) "Check In Successful" else "Check Out Successful",
+            "${employee.displayName}\n${employee.employeeId}\n$time",
+        )
         Handler(Looper.getMainLooper()).postDelayed({ if (!isFinishing) returnHome() }, ATTENDANCE_RESULT_DURATION_MS)
     }
 
     private fun renderAttendanceOfflineSaved(action: AttendanceAction) {
-        content.removeAllViews()
-        val message = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            addView(title(if (action == AttendanceAction.CHECK_IN) "CHECK IN SAVED" else "CHECK OUT SAVED").apply {
-                setTextColor(getColor(R.color.attendance_warning))
-            }, linearParams())
-            addView(TextView(this@FaceRecognitionFlowActivity).apply {
-                text = "No network connection.\nAttendance will sync automatically."
-                textSize = 20f
-                gravity = Gravity.CENTER
-                setTextColor(getColor(R.color.attendance_text))
-            }, linearParams(topMargin = 8))
-        }
-        content.addView(message, frameParams(Gravity.CENTER))
+        renderFinalResult(
+            SemanticResultView.Kind.WARNING,
+            if (action == AttendanceAction.CHECK_IN) "Check In Saved" else "Check Out Saved",
+            "No network connection. Attendance will sync automatically.",
+        )
         Handler(Looper.getMainLooper()).postDelayed({ if (!isFinishing) returnHome() }, ATTENDANCE_RESULT_DURATION_MS)
     }
 
-    private fun renderAttendanceFailure(employee: FaceCandidate, action: AttendanceAction, checkIn: TextView, checkOut: TextView) {
+    private fun renderAttendanceFailure() {
         soundManager.play(AppSoundManager.Event.ERROR)
         content.removeAllViews()
         renderMessage("Attendance could not be recorded.", "Please try again.")
-        checkIn.isEnabled = true; checkOut.isEnabled = true
         content.addView(actionButton("TRY AGAIN", R.drawable.face_action_not_you, 64) { render(FaceFlowState.ATTENDANCE_ACTION) }, frameParams(Gravity.BOTTOM, bottomMargin = 8))
     }
 
     private fun renderAttendanceRejected(rejection: AttendanceBusinessRejection?) {
         soundManager.play(AppSoundManager.Event.ERROR)
-        content.removeAllViews()
         if (rejection == AttendanceBusinessRejection.NO_OPEN_SESSION) {
-            renderMessage("Cannot check out", "No active check-in found. Please check in first.")
+            renderFinalResult(SemanticResultView.Kind.WARNING, "Cannot Check Out", "No active Check In found. Please check in first.")
         } else {
-            renderMessage("Attendance could not be recorded.", "Attendance could not be recorded.")
+            renderFinalResult(SemanticResultView.Kind.ERROR, "Attendance could not be recorded.", "Please try again.")
         }
         Handler(Looper.getMainLooper()).postDelayed({ if (!isFinishing) returnHome() }, ATTENDANCE_RESULT_DURATION_MS)
+    }
+
+    private fun renderAttendanceWarning(title: String, message: String) {
+        soundManager.play(AppSoundManager.Event.WARNING)
+        renderFinalResult(SemanticResultView.Kind.WARNING, title, message)
+        Handler(Looper.getMainLooper()).postDelayed({ if (!isFinishing) returnHome() }, ATTENDANCE_RESULT_DURATION_MS)
+    }
+
+    private fun renderFinalResult(kind: SemanticResultView.Kind, title: String, message: String) {
+        content.removeAllViews()
+        content.addView(SemanticResultView(this).apply { show(kind, title, message) }, frameParams(Gravity.CENTER))
     }
 
     private fun AttendanceRecordOutcome?.isOfflinePending(): Boolean =
@@ -510,6 +594,7 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        if (attendanceSubmitting.isBusy()) return
         when (currentState) {
             FaceFlowState.ATTENDANCE_ACTION -> returnHome()
             FaceFlowState.CANDIDATE_LIST -> {

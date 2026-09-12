@@ -315,7 +315,8 @@ class FaceScanActivity : AppCompatActivity(), SurfaceHolder.Callback {
                     startupInFlight.set(false)
                 }
             } catch (error: Exception) {
-                runOnUiThread { startupInFlight.set(false); fail(error.message ?: "Could not start face scan.") }
+                Log.w(LOG_TAG, "Could not start face scan", error)
+                runOnUiThread { startupInFlight.set(false); fail("Face Recognition is temporarily unavailable. Please try again.") }
             }
     }
     private var currentScanState: FaceScanState = FaceScanState.Idle
@@ -361,13 +362,9 @@ class FaceScanActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     private fun matrix(queries: List<ByteArray>, templates: List<ByteArray>): String =
         queries.joinToString(";") { query -> templates.joinToString(",") { template -> "%.6f".format(SFaceValidationSession.cosine(query, template)) } }
-    /**
-     * CALIBRATION deliberately permits a ranked, manual profile-selection flow in release.
-     * It does not apply a matcher threshold or establish a production biometric acceptance.
-     */
+    /** Manual ranked profiles and scores are diagnostic-only, never employee-facing in a release build. */
     private fun isManualCandidateFlowEnabled(): Boolean =
-        BuildConfig.DEBUG ||
-            FaceCalibrationFirestoreRepository.get(applicationContext).currentConfig().mode == FaceRecognitionConfigMode.CALIBRATION
+        BuildConfig.DEBUG
     private fun requestSFaceExtraction(input: FaceFeatureExtractionInput) {
         if (!BuildConfig.DEBUG || !sfaceInFlight.compareAndSet(false, true)) return
         sfaceExecutor.execute { extractDiagnostic(input) { result ->

@@ -44,26 +44,35 @@ class AttendanceService(
     },
     private val pendingSyncScheduler: (() -> Unit)? = null,
 ) {
-    fun record(userId: String, employeeId: String, action: String? = null, biometricType: String? = null): AttendanceRecordOutcome {
+    fun record(
+        userId: String,
+        employeeId: String,
+        action: String? = null,
+        biometricType: String? = null,
+        source: String = SOURCE_FINGERPRINT,
+    ): AttendanceRecordOutcome {
         require(action == null || action in setOf("CHECK_IN", "CHECK_OUT"))
         require(biometricType == null || biometricType in setOf("FINGERPRINT", "FACE"))
-        val event = AttendanceEvent(eventIdProvider(), userId, employeeId, timestampProvider(), requestedAction = action, biometricType = biometricType)
+        require(source in setOf(SOURCE_FINGERPRINT, SOURCE_FACE))
+        val event = AttendanceEvent(eventIdProvider(), deviceIdProvider().trim(), userId, employeeId,
+            timestampProvider(), requestedAction = action, biometricType = biometricType, source = source)
         repository.insertPending(event)
         val durableEvent = repository.get(event.eventId) ?: event
         return submitSingle(durableEvent).also { outcome ->
-            if (outcome.isNetworkPending()) pendingSyncScheduler?.invoke()
+            if (outcome.status == AttendanceRecordStatus.PENDING) pendingSyncScheduler?.invoke()
         }
     }
 
     fun syncPendingAttendance(limit: Int = MAX_BATCH_SIZE): AttendanceSyncSummary {
-        val pending = repository.pending(limit.coerceIn(1, MAX_BATCH_SIZE))
-        if (pending.isEmpty()) return AttendanceSyncSummary(0, 0, 0)
-        configurationError()?.let { return AttendanceSyncSummary(0, 0, pending.size, it) }
+        val orderedPending = repository.pending(limit.coerceIn(1, MAX_BATCH_SIZE))
+        if (orderedPending.isEmpty()) return AttendanceSyncSummary(0, 0, 0)
+        val deviceId = effectiveDeviceId(orderedPending.first())
+        val pending = orderedPending.takeWhile { effectiveDeviceId(it) == deviceId }
+        configurationError(deviceId)?.let { return AttendanceSyncSummary(0, 0, pending.size, it) }
         if (!networkAvailable()) {
             return AttendanceSyncSummary(0, 0, pending.size, BackendApiError.NETWORK_UNAVAILABLE)
         }
 
-        val deviceId = deviceIdProvider().trim()
         return try {
             val response = api.recordAttendanceBulk(BulkAttendanceRequestDto(
                 deviceId,
@@ -80,20 +89,40 @@ class AttendanceService(
                 if (value.serverTimestamp.isBlank()) {
                     return AttendanceSyncSummary(pending.size, 0, pending.size, BackendApiError.INVALID_RESPONSE)
                 }
-                var synced = 0
                 val pendingIds = pending.map { it.eventId }.toSet()
-                value.results.filter { it.attendanceEventId in pendingIds }.forEach { result ->
+                val resultsByEventId = value.results.associateBy { it.attendanceEventId }
+                if (resultsByEventId.size != value.results.size || resultsByEventId.keys != pendingIds ||
+                    resultsByEventId.values.any { it.status !in setOf(RECORDED, ALREADY_RECORDED, REJECTED,
+                        DEBOUNCED, DUPLICATE_IGNORED, FAILED) }) {
+                    return AttendanceSyncSummary(pending.size, 0, pending.size, BackendApiError.INVALID_RESPONSE)
+                }
+                var synced = 0
+                var terminal = 0
+                var retryableFailure = false
+                resultsByEventId.values.forEach { result ->
                     if (result.status == RECORDED || result.status == ALREADY_RECORDED) {
                         repository.markSynced(result.attendanceEventId, result.attendanceRecordId,
                             result.attendanceAction, value.serverTimestamp)
                         synced++
                     } else if (result.status == REJECTED) {
-                        repository.delete(result.attendanceEventId)
+                        repository.markRejected(result.attendanceEventId, result.message ?: result.errorCode)
+                        terminal++
                         logWarning("Attendance queued event rejected eventId=${result.attendanceEventId} " +
                             "message=${result.message.orEmpty()}")
+                    } else if (result.status == DEBOUNCED) {
+                        repository.markDebounced(result.attendanceEventId, result.message ?: result.errorCode)
+                        terminal++
+                        logWarning("Attendance queued event debounced eventId=${result.attendanceEventId} " +
+                            "message=${result.message.orEmpty()}")
+                    } else if (result.status == DUPLICATE_IGNORED) {
+                        repository.markDebounced(result.attendanceEventId, result.message ?: result.errorCode)
+                        terminal++
+                    } else if (result.status == FAILED) {
+                        retryableFailure = true
                     }
                 }
-                AttendanceSyncSummary(pending.size, synced, pending.size - synced)
+                AttendanceSyncSummary(pending.size, synced, pending.size - synced - terminal,
+                    if (retryableFailure) BackendApiError.SERVER_FAILURE else null)
             }
         } catch (error: Throwable) {
             AttendanceSyncSummary(pending.size, 0, pending.size, BackendErrorMapper.fromThrowable(error))
@@ -101,19 +130,21 @@ class AttendanceService(
     }
 
     private fun submitSingle(event: AttendanceEvent): AttendanceRecordOutcome {
-        configurationError()?.let { return AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING, it) }
+        val deviceId = effectiveDeviceId(event)
+        configurationError(deviceId)?.let { return AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING, it) }
         if (!networkAvailable()) {
             return AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING, BackendApiError.NETWORK_UNAVAILABLE)
         }
         return try {
             val request = RecordAttendanceRequestDto(
                 attendanceEventId = event.eventId,
-                deviceId = deviceIdProvider().trim(),
+                deviceId = deviceId,
                 userId = event.userId,
                 employeeId = event.employeeId,
                 deviceTimestamp = event.deviceTimestamp,
                 action = event.requestedAction,
                 biometricType = event.biometricType,
+                source = event.source,
             )
             logDebug("Attendance request eventId=${request.attendanceEventId} deviceId=${request.deviceId} " +
                 "userId=${request.userId} employeeId=${request.employeeId} timestamp=${request.deviceTimestamp} " +
@@ -136,11 +167,15 @@ class AttendanceService(
                     return invalidResponse(event, "attendanceEventId mismatch expected=${event.eventId} actual=${value.attendanceEventId}")
                 }
                 if (value.status == DUPLICATE_IGNORED) {
-                    repository.delete(event.eventId)
+                    repository.markRejected(event.eventId, value.message ?: "Duplicate attendance ignored")
+                    AttendanceRecordOutcome(event, AttendanceRecordStatus.DUPLICATE_IGNORED,
+                        message = value.message)
+                } else if (value.status == DEBOUNCED) {
+                    repository.markDebounced(event.eventId, value.message ?: "Attendance debounced")
                     AttendanceRecordOutcome(event, AttendanceRecordStatus.DUPLICATE_IGNORED,
                         message = value.message)
                 } else if (value.status == REJECTED) {
-                    repository.delete(event.eventId)
+                    repository.markRejected(event.eventId, value.message)
                     val rejection = businessRejection(value.message)
                     logWarning("Attendance business rejection reason=$rejection message=${value.message.orEmpty()}")
                     AttendanceRecordOutcome(event, AttendanceRecordStatus.REJECTED,
@@ -194,25 +229,26 @@ class AttendanceService(
         runCatching { Log.w(TAG, message) }
     }
 
-    private fun configurationError(): BackendApiError? =
-        if (!config.apiKeyConfigured || config.baseUrl.isBlank() || deviceIdProvider().trim().isBlank()) {
+    private fun configurationError(deviceId: String): BackendApiError? =
+        if (!config.apiKeyConfigured || config.baseUrl.isBlank() || deviceId.isBlank()) {
             BackendApiError.CONFIGURATION_REQUIRED
         } else null
 
-    private fun AttendanceEvent.toDto() = AttendanceEventDto(eventId, userId, employeeId,
-        deviceTimestamp = deviceTimestamp, action = requestedAction, biometricType = biometricType)
+    private fun effectiveDeviceId(event: AttendanceEvent): String = event.deviceId.ifBlank { deviceIdProvider().trim() }
 
-    private fun AttendanceRecordOutcome.isNetworkPending(): Boolean =
-        status == AttendanceRecordStatus.PENDING &&
-            (error == BackendApiError.NETWORK_UNAVAILABLE || error == BackendApiError.NETWORK_FAILURE)
+    private fun AttendanceEvent.toDto() = AttendanceEventDto(eventId, userId, employeeId,
+        source = source, deviceTimestamp = deviceTimestamp, action = requestedAction, biometricType = biometricType)
 
     private companion object {
         const val TAG = "AttendanceService"
+        const val SOURCE_FINGERPRINT = "FINGERPRINT"
+        const val SOURCE_FACE = "FACE"
         const val MAX_BATCH_SIZE = 50
         const val RECORDED = "RECORDED"
         const val ALREADY_RECORDED = "ALREADY_RECORDED"
         const val DUPLICATE_IGNORED = "DUPLICATE_IGNORED"
         const val REJECTED = "REJECTED"
+        const val DEBOUNCED = "DEBOUNCED"
         const val FAILED = "FAILED"
         const val NO_OPEN_SESSION_MESSAGE = "No open session found to check out."
         const val MAX_LOGGED_BODY_BYTES = 16L * 1024L

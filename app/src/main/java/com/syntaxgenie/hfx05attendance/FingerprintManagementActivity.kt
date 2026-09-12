@@ -155,8 +155,7 @@ class FingerprintManagementActivity : AppCompatActivity() {
                     deletionStore.record(enrollment.first.employeeId, enrollment.first.enrollmentId)
                     loadEnrollments()
                 }
-                else Toast.makeText(this, result.exceptionOrNull()?.message
-                    ?: getString(R.string.fingerprint_deletion_failed), Toast.LENGTH_LONG).show()
+                else syncStatus.setText(R.string.fingerprint_deletion_failed)
             }
         }
     }
@@ -173,8 +172,7 @@ class FingerprintManagementActivity : AppCompatActivity() {
                 }
                 setSyncBusy(false, message)
                 if (result.isSuccess) loadEnrollments()
-                else Toast.makeText(this, result.exceptionOrNull()?.message
-                    ?: getString(message), Toast.LENGTH_LONG).show()
+                else syncStatus.setText(message)
             }
         }
     }

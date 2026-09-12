@@ -175,6 +175,9 @@
     <string name="device_backup_last">Last successful backup: %1$s</string>
     <string name="backup_now">BACK UP NOW</string>
     <string name="restore_device_data">RESTORE DEVICE DATA</string>
+    <string name="restore_device_data_title">Restore device data?</string>
+    <string name="restore_device_data_message">This will restore biometric and device data from the saved backup and may replace current local data.</string>
+    <string name="restore">RESTORE</string>
     <string name="device_backup_running">Backing up...</string>
     <string name="device_restore_running">Restoring...</string>
     <string name="device_backup_complete">Backup Complete</string>
@@ -218,6 +221,10 @@
     <string name="not_configured">Not configured</string>
     <string name="save_device_id">SAVE DEVICE ID</string>
     <string name="sound_feedback">Sound Feedback</string>
+    <string name="attendance_methods">Attendance Methods</string>
+    <string name="face_recognition_setting">Face Recognition</string>
+    <string name="fingerprint_recognition_setting">Fingerprint Recognition</string>
+    <string name="biometric_method_required">At least one attendance method must remain enabled.</string>
     <string name="device_id_saved">Device ID saved locally</string>
     <string name="application_update">Application Update</string>
     <string name="installed_version">Installed Version: %1$s</string>

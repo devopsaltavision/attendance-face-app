@@ -10,7 +10,7 @@
         android:text="@string/local_fingerprints_notice" android:textColor="@color/attendance_text_secondary" />
     <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent"
         android:layout_height="wrap_content" android:layout_marginHorizontal="18dp"
-        android:hint="@string/search_fingerprints" app:startIconDrawable="@android:drawable/ic_menu_search">
+        android:hint="@string/search_fingerprints" app:startIconDrawable="@drawable/ic_search">
         <com.google.android.material.textfield.TextInputEditText android:id="@+id/fingerprintSearchInput"
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:importantForAutofill="no" android:inputType="text" />

@@ -12,12 +12,13 @@ import com.syntaxgenie.hfx05attendance.backup.DeviceBackupOverall
 import com.syntaxgenie.hfx05attendance.backup.DeviceBackupSummary
 import com.syntaxgenie.hfx05attendance.backup.DeviceCloudBackupStatus
 import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
+import com.syntaxgenie.hfx05attendance.ui.SemanticResultView
 import java.text.DateFormat
 import java.util.Date
 
 class DeviceBackupActivity : AppCompatActivity() {
     private val coordinator by lazy { DeviceBackupCoordinator(applicationContext) }
-    private lateinit var status: TextView
+    private lateinit var status: SemanticResultView
     private lateinit var fingerprint: TextView
     private lateinit var face: TextView
     private lateinit var lastBackup: TextView
@@ -31,12 +32,13 @@ class DeviceBackupActivity : AppCompatActivity() {
         KioskWindowInsets.apply(this, findViewById(R.id.deviceBackupRoot))
         findViewById<MaterialToolbar>(R.id.deviceBackupToolbar).setNavigationOnClickListener { finish() }
         status = findViewById(R.id.deviceBackupStatus); fingerprint = findViewById(R.id.deviceBackupFingerprint)
+        status.show(SemanticResultView.Kind.INFO, getString(R.string.device_backup_ready))
         face = findViewById(R.id.deviceBackupFace); lastBackup = findViewById(R.id.deviceBackupLastSuccess)
         backup = findViewById(R.id.backupNowButton); restore = findViewById(R.id.restoreDeviceDataButton)
         delete = findViewById(R.id.deleteCloudBackupButton)
         loadCloudStatus()
         backup.setOnClickListener { runBackup() }
-        restore.setOnClickListener { runRestore() }
+        restore.setOnClickListener { confirmRestore() }
         delete.setOnClickListener { confirmDelete() }
     }
 
@@ -51,18 +53,26 @@ class DeviceBackupActivity : AppCompatActivity() {
     }
 
     private fun setBusy(message: String) {
-        backup.isEnabled = false; restore.isEnabled = false; delete.isEnabled = false; status.text = message
+        backup.isEnabled = false; restore.isEnabled = false; delete.isEnabled = false
+        status.show(SemanticResultView.Kind.INFO, message)
     }
 
     private fun render(summary: DeviceBackupSummary, isRestore: Boolean) {
         backup.isEnabled = true; restore.isEnabled = true; delete.isEnabled = true
         fingerprint.text = getString(R.string.device_backup_fingerprint_count, summary.fingerprint.count)
         face.text = getString(R.string.device_backup_face_count, summary.face.count)
-        status.text = when (summary.overall) {
-            DeviceBackupOverall.SUCCESS -> getString(if (isRestore) R.string.device_restore_complete else R.string.device_backup_complete)
-            else -> getString(if (isRestore) R.string.device_restore_incomplete else R.string.device_backup_incomplete)
-        }
+        val success = summary.overall == DeviceBackupOverall.SUCCESS
+        status.show(if (success) SemanticResultView.Kind.SUCCESS else SemanticResultView.Kind.ERROR,
+            getString(if (success) if (isRestore) R.string.device_restore_complete else R.string.device_backup_complete else if (isRestore) R.string.device_restore_incomplete else R.string.device_backup_incomplete))
         loadCloudStatus()
+    }
+
+    private fun confirmRestore() {
+        MaterialAlertDialogBuilder(this).setTitle(R.string.restore_device_data_title)
+            .setMessage(R.string.restore_device_data_message)
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.restore) { _, _ -> runRestore() }
+            .show()
     }
 
     private fun confirmDelete() {
@@ -71,7 +81,8 @@ class DeviceBackupActivity : AppCompatActivity() {
                 setBusy(getString(R.string.delete_cloud_backup_running))
                 coordinator.deleteCloudBackups { result -> runOnUiThread {
                     backup.isEnabled = true; restore.isEnabled = true; delete.isEnabled = true
-                    status.text = getString(if (result == DeviceBackupOverall.SUCCESS) R.string.delete_cloud_backup_complete else R.string.delete_cloud_backup_failed)
+                    status.show(if (result == DeviceBackupOverall.SUCCESS) SemanticResultView.Kind.SUCCESS else SemanticResultView.Kind.ERROR,
+                        getString(if (result == DeviceBackupOverall.SUCCESS) R.string.delete_cloud_backup_complete else R.string.delete_cloud_backup_failed))
                     loadCloudStatus()
                 } }
             }.show()

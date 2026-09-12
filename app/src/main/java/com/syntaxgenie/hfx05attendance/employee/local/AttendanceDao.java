@@ -21,6 +21,9 @@ public interface AttendanceDao {
             "attendance_action = :action, server_timestamp = :serverTimestamp WHERE event_id = :eventId")
     void markSynced(String eventId, String recordId, String action, String serverTimestamp);
 
-    @Query("DELETE FROM attendance_events WHERE event_id = :eventId")
-    int delete(String eventId);
+    @Query("UPDATE attendance_events SET sync_state = 'REJECTED', rejection_reason = :rejectionReason WHERE event_id = :eventId")
+    void markRejected(String eventId, String rejectionReason);
+
+    @Query("UPDATE attendance_events SET sync_state = 'DEBOUNCED', rejection_reason = :reason WHERE event_id = :eventId")
+    void markDebounced(String eventId, String reason);
 }

@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase;
 import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
-@Database(entities = {EmployeeEntity.class, EmployeeSyncStateEntity.class, AttendanceEventEntity.class}, version = 4, exportSchema = true)
+@Database(entities = {EmployeeEntity.class, EmployeeSyncStateEntity.class, AttendanceEventEntity.class}, version = 5, exportSchema = true)
 public abstract class EmployeeDirectoryDatabase extends RoomDatabase {
     public abstract EmployeeDao employeeDao();
     public abstract AttendanceDao attendanceDao();
@@ -36,8 +36,16 @@ public abstract class EmployeeDirectoryDatabase extends RoomDatabase {
             database.execSQL("ALTER TABLE attendance_events ADD COLUMN biometric_type TEXT");
         }
     };
+    public static final Migration MIGRATION_4_5 = new Migration(4, 5) {
+        @Override public void migrate(SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE attendance_events ADD COLUMN device_id TEXT NOT NULL DEFAULT ''");
+            database.execSQL("ALTER TABLE attendance_events ADD COLUMN source TEXT NOT NULL DEFAULT 'FINGERPRINT'");
+            database.execSQL("ALTER TABLE attendance_events ADD COLUMN rejection_reason TEXT");
+            database.execSQL("UPDATE attendance_events SET source = 'FACE' WHERE biometric_type = 'FACE'");
+        }
+    };
     public static EmployeeDirectoryDatabase create(Context context) {
         return Room.databaseBuilder(context.getApplicationContext(), EmployeeDirectoryDatabase.class,
-                "employee_directory.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build();
+                "employee_directory.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build();
     }
 }

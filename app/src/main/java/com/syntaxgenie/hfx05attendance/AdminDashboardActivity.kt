@@ -26,9 +26,6 @@ class AdminDashboardActivity : AppCompatActivity() {
         findViewById<Button>(R.id.deviceSettingsButton).setOnClickListener {
             startActivity(Intent(this, DeviceSettingsActivity::class.java))
         }
-        findViewById<Button>(R.id.diagnosticsButton).setOnClickListener {
-            startActivity(Intent(this, DiagnosticsActivity::class.java))
-        }
         findViewById<Button>(R.id.logoutButton).setOnClickListener {
             FirebaseAuth.getInstance().signOut()
             startActivity(Intent(this, MainActivity::class.java).apply {

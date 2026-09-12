@@ -240,7 +240,7 @@ class UserManagementActivity : AppCompatActivity() {
     private fun setBusy(busy: Boolean) {
         refreshing = busy
         refreshButton.isEnabled = !busy
-        refreshButton.icon = getDrawable(if (busy) android.R.drawable.ic_popup_sync else android.R.drawable.ic_menu_rotate)
+        refreshButton.icon = getDrawable(if (busy) R.drawable.ic_refresh else R.drawable.ic_refresh)
     }
     private fun networkAvailable(): Boolean {
         val manager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager

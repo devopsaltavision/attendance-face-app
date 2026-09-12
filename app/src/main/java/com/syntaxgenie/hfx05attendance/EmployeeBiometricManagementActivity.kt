@@ -54,15 +54,15 @@ class EmployeeBiometricManagementActivity : AppCompatActivity() {
         val faceRecords = faceRepository.listByEmployee(employee.employeeId).filter { it.status == FaceEnrollmentStatus.ACTIVE }
         val faceRegistered = faceRecords.size == 3 && faceRecords.all { it.metadata.enrollmentSampleCount == 3 }
         val fingerprintResult = fingerprints.getAll()
-        runOnUiThread { render(employee, faceRegistered, fingerprintSummary(employee, fingerprintResult)) }
+        runOnUiThread { render(employee, faceRegistered, fingerprintSummary(employee, fingerprintResult), hasLocalFingerprint(fingerprintResult, employee.employeeId)) }
     }.apply { name = "employee-biometric-read" }.start()
 
-    private fun render(employee: EmployeeRecord, faceRegistered: Boolean, fingerprint: String) {
+    private fun render(employee: EmployeeRecord, faceRegistered: Boolean, fingerprint: String, hasFingerprint: Boolean) {
         content.removeAllViews()
         content.addView(text(employee.displayName, 18f))
         content.addView(text("${employee.employeeId}    ${if (employee.active) "Active" else "Inactive"}", 14f, true))
-        content.addView(section("FACE"))
-        content.addView(text(if (faceRegistered) "Registered ✓" else "Not registered", 16f))
+        content.addView(section("Face Recognition"))
+        content.addView(text(if (faceRegistered) "Registered" else "Not Registered", 16f))
         if (faceRegistered) {
             if (photos.hasPhotos(employee.employeeId)) button("VIEW FACE PHOTOS") {
                 startActivity(FaceRegistrationPhotosActivity.createIntent(this, employee.employeeId))
@@ -74,9 +74,17 @@ class EmployeeBiometricManagementActivity : AppCompatActivity() {
                 putExtra(com.syntaxgenie.hfx05attendance.face.scan.FaceRegistrationActivity.EXTRA_EMPLOYEE_NAME, employee.displayName)
             })
         }
-        content.addView(section("FINGERPRINT"))
+        content.addView(section("Fingerprint"))
         content.addView(text(fingerprint, 16f))
-        button("MANAGE FINGERPRINTS") { startActivity(FingerprintManagementActivity.createIntent(this, employee.employeeId)) }
+        if (hasFingerprint) {
+            button("MANAGE FINGERPRINTS") { startActivity(FingerprintManagementActivity.createIntent(this, employee.employeeId)) }
+        } else if (fingerprint == "Not registered") {
+            button("REGISTER FINGERPRINT", employee.active) {
+                startActivity(FingerprintRegistrationActivity.createIntent(this, employee.userId, employee.employeeId, employee.displayName))
+            }
+        } else {
+            button("MANAGE FINGERPRINTS") { startActivity(FingerprintManagementActivity.createIntent(this, employee.employeeId)) }
+        }
     }
 
     private fun confirmDeleteFace(employee: EmployeeRecord) {
@@ -103,6 +111,9 @@ class EmployeeBiometricManagementActivity : AppCompatActivity() {
         val deleted = deletionStore.matches(employee.employeeId, employee.fingerprintEnrollmentId)
         return if (result !is RepositoryResult.Success || remote && !deleted) "Sync required" else "Not registered"
     }
+
+    private fun hasLocalFingerprint(result: RepositoryResult<List<com.syntaxgenie.hfx05attendance.fingerprint.repository.BiometricRecord>>, employeeId: String): Boolean =
+        result is RepositoryResult.Success && result.value.any { it.employeeId.equals(employeeId, true) }
 
     private fun section(value: String) = text(value, 17f).apply { setPadding(0, 36, 0, 12) }
     private fun text(value: String, size: Float, secondary: Boolean = false) = TextView(this).apply {

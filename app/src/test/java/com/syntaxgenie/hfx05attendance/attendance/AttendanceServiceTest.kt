@@ -79,6 +79,8 @@ class AttendanceServiceTest {
         assertEquals(AttendanceRecordStatus.PENDING, outcome.status)
         assertEquals(BackendApiError.NETWORK_UNAVAILABLE, outcome.error)
         assertEquals("event-1", repository.get("event-1")!!.eventId)
+        assertEquals(TEST_DEVICE_ID, repository.get("event-1")!!.deviceId)
+        assertEquals("FINGERPRINT", repository.get("event-1")!!.source)
         assertEquals(AttendanceSyncState.PENDING, repository.get("event-1")!!.syncState)
         assertEquals(0, server.requestCount)
     }
@@ -95,15 +97,16 @@ class AttendanceServiceTest {
 
     @Test fun faceCheckInSendsExplicitActionAndBiometricType() {
         server.enqueue(successResponse("event-1", "CHECK_IN"))
-        service().record(TEST_USER_ID, TEST_EMPLOYEE_ID, "CHECK_IN", "FACE")
+        service().record(TEST_USER_ID, TEST_EMPLOYEE_ID, "CHECK_IN", "FACE", "FACE")
         val json = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
         assertEquals("CHECK_IN", json["action"].asString)
         assertEquals("FACE", json["biometricType"].asString)
+        assertEquals("FACE", json["source"].asString)
     }
 
     @Test fun faceCheckOutSendsExplicitActionAndBiometricType() {
         server.enqueue(successResponse("event-1", "CHECK_OUT"))
-        service().record(TEST_USER_ID, TEST_EMPLOYEE_ID, "CHECK_OUT", "FACE")
+        service().record(TEST_USER_ID, TEST_EMPLOYEE_ID, "CHECK_OUT", "FACE", "FACE")
         val json = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
         assertEquals("CHECK_OUT", json["action"].asString)
         assertEquals("FACE", json["biometricType"].asString)
@@ -143,7 +146,7 @@ class AttendanceServiceTest {
     }
 
     @Test fun pendingFaceRetryRetainsOriginalTimestampActionAndBiometricType() {
-        service(networkAvailable = false).record(TEST_USER_ID, TEST_EMPLOYEE_ID, "CHECK_OUT", "FACE")
+        service(networkAvailable = false).record(TEST_USER_ID, TEST_EMPLOYEE_ID, "CHECK_OUT", "FACE", "FACE")
         server.enqueue(bulkResponse("event-1", "RECORDED", "CHECK_OUT"))
 
         service().syncPendingAttendance()
@@ -154,15 +157,28 @@ class AttendanceServiceTest {
         assertEquals(TEST_TIMESTAMP, event["deviceTimestamp"].asString)
         assertEquals("CHECK_OUT", event["action"].asString)
         assertEquals("FACE", event["biometricType"].asString)
+        assertEquals("FACE", event["source"].asString)
     }
 
-    @Test fun bulkMarksOnlyRecordedAndAlreadyRecordedResultsSynced() {
-        repeat(3) { service(networkAvailable = false).record(TEST_USER_ID, TEST_EMPLOYEE_ID) }
+    @Test fun pendingRetryUsesOriginalDeviceIdAfterConfigurationChanges() {
+        service(networkAvailable = false, deviceId = "DEVICE_A").record(TEST_USER_ID, TEST_EMPLOYEE_ID)
+        server.enqueue(bulkResponse("event-1", "RECORDED", "CHECK_IN"))
+
+        service(deviceId = "DEVICE_B").syncPendingAttendance()
+        val json = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
+
+        assertEquals("DEVICE_A", json["deviceId"].asString)
+        assertEquals("DEVICE_A", repository.get("event-1")!!.deviceId)
+    }
+
+    @Test fun bulkMatchesOutOfOrderTerminalResultsByEventIdAndContinuesPastTerminalEvents() {
+        repeat(4) { service(networkAvailable = false).record(TEST_USER_ID, TEST_EMPLOYEE_ID) }
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{
             "results":[
+              {"attendanceEventId":"event-3","status":"REJECTED","attendanceRecordId":null,"attendanceAction":null,"errorCode":"FPA-202"},
               {"attendanceEventId":"event-1","status":"RECORDED","attendanceRecordId":"r1","attendanceAction":"CHECK_IN"},
-              {"attendanceEventId":"event-2","status":"ALREADY_RECORDED","attendanceRecordId":"r2","attendanceAction":"CHECK_OUT"},
-              {"attendanceEventId":"event-3","status":"REJECTED","attendanceRecordId":null,"attendanceAction":null,"errorCode":"FPA-202"}
+              {"attendanceEventId":"event-4","status":"DEBOUNCED","attendanceRecordId":null,"attendanceAction":null,"errorCode":"FPA-202"},
+              {"attendanceEventId":"event-2","status":"ALREADY_RECORDED","attendanceRecordId":"r2","attendanceAction":"CHECK_OUT"}
             ],"serverTimestamp":"2026-08-16T04:45:00.000Z"} """))
 
         val result = service().syncPendingAttendance()
@@ -173,15 +189,21 @@ class AttendanceServiceTest {
         assertEquals("/api/fingerprint/attendance/bulk", request.path)
         assertEquals("Bearer TEST_DEVICE_API_KEY", request.getHeader("Authorization"))
         assertEquals(TEST_DEVICE_ID, json["deviceId"].asString)
-        assertEquals(3, json["events"].asJsonArray.size())
+        assertEquals(4, json["events"].asJsonArray.size())
+        assertEquals(listOf("event-1", "event-2", "event-3", "event-4"), json["events"].asJsonArray
+            .map { it.asJsonObject["attendanceEventId"].asString })
         assertEquals(setOf("attendanceEventId", "userId", "employeeId", "source", "deviceTimestamp"),
             json["events"].asJsonArray[0].asJsonObject.keySet())
         assertEquals("FINGERPRINT", json["events"].asJsonArray[0].asJsonObject["source"].asString)
         assertEquals(2, result.synced)
-        assertEquals(1, result.remaining)
+        assertEquals(0, result.remaining)
         assertEquals(AttendanceSyncState.SYNCED, repository.get("event-1")!!.syncState)
         assertEquals(AttendanceSyncState.SYNCED, repository.get("event-2")!!.syncState)
-        assertEquals(AttendanceSyncState.PENDING, repository.get("event-3")!!.syncState)
+        assertEquals(AttendanceSyncState.REJECTED, repository.get("event-3")!!.syncState)
+        assertEquals("FPA-202", repository.get("event-3")!!.rejectionReason)
+        assertEquals(AttendanceSyncState.DEBOUNCED, repository.get("event-4")!!.syncState)
+        assertEquals("FPA-202", repository.get("event-4")!!.rejectionReason)
+        assertTrue(repository.pending(50).isEmpty())
     }
 
     @Test fun duplicateLocalUuidDoesNotInsertAnotherEvent() {
@@ -246,12 +268,112 @@ class AttendanceServiceTest {
         assertEquals(2, repository.pending(50).size)
     }
 
+    @Test fun partialBulkResponseLeavesEveryEventPendingForRetry() {
+        repeat(2) { service(networkAvailable = false).record(TEST_USER_ID, TEST_EMPLOYEE_ID) }
+        server.enqueue(bulkResponse("event-1", "RECORDED", "CHECK_IN"))
+
+        val result = service().syncPendingAttendance()
+
+        assertEquals(BackendApiError.INVALID_RESPONSE, result.error)
+        assertEquals(listOf("event-1", "event-2"), repository.pending(50).map { it.eventId })
+    }
+
+    @Test fun duplicateOrUnknownBulkResultIdsLeaveEveryEventPendingForRetry() {
+        repeat(2) { service(networkAvailable = false).record(TEST_USER_ID, TEST_EMPLOYEE_ID) }
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{
+            "results":[
+              {"attendanceEventId":"event-1","status":"RECORDED","attendanceRecordId":"r1","attendanceAction":"CHECK_IN"},
+              {"attendanceEventId":"event-1","status":"RECORDED","attendanceRecordId":"r1","attendanceAction":"CHECK_IN"}
+            ],"serverTimestamp":"2026-08-16T04:45:00.000Z"} """))
+
+        val duplicateResult = service().syncPendingAttendance()
+        assertEquals(BackendApiError.INVALID_RESPONSE, duplicateResult.error)
+        assertEquals(listOf("event-1", "event-2"), repository.pending(50).map { it.eventId })
+
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{
+            "results":[
+              {"attendanceEventId":"event-1","status":"RECORDED","attendanceRecordId":"r1","attendanceAction":"CHECK_IN"},
+              {"attendanceEventId":"unexpected","status":"RECORDED","attendanceRecordId":"r2","attendanceAction":"CHECK_IN"}
+            ],"serverTimestamp":"2026-08-16T04:45:00.000Z"} """))
+        val unknownResult = service().syncPendingAttendance()
+        assertEquals(BackendApiError.INVALID_RESPONSE, unknownResult.error)
+        assertEquals(listOf("event-1", "event-2"), repository.pending(50).map { it.eventId })
+    }
+
+    @Test fun unsupportedBulkStatusLeavesEventPendingForRetry() {
+        service(networkAvailable = false).record(TEST_USER_ID, TEST_EMPLOYEE_ID)
+        server.enqueue(bulkResponse("event-1", "UNSUPPORTED", "CHECK_IN"))
+
+        val result = service().syncPendingAttendance()
+
+        assertEquals(BackendApiError.INVALID_RESPONSE, result.error)
+        assertEquals(AttendanceSyncState.PENDING, repository.get("event-1")!!.syncState)
+    }
+
+    @Test fun retryableBulkFailedStatusKeepsOnlyThatEventPending() {
+        repeat(2) { service(networkAvailable = false).record(TEST_USER_ID, TEST_EMPLOYEE_ID) }
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{
+            "results":[
+              {"attendanceEventId":"event-1","status":"RECORDED","attendanceRecordId":"r1","attendanceAction":"CHECK_IN"},
+              {"attendanceEventId":"event-2","status":"FAILED","attendanceRecordId":null,"attendanceAction":null}
+            ],"serverTimestamp":"2026-08-16T04:45:00.000Z"} """))
+
+        val first = service().syncPendingAttendance()
+
+        assertEquals(BackendApiError.SERVER_FAILURE, first.error)
+        assertEquals(AttendanceSyncState.SYNCED, repository.get("event-1")!!.syncState)
+        assertEquals(AttendanceSyncState.PENDING, repository.get("event-2")!!.syncState)
+        server.enqueue(bulkResponse("event-2", "RECORDED", "CHECK_OUT"))
+        service().syncPendingAttendance()
+        assertEquals(AttendanceSyncState.SYNCED, repository.get("event-2")!!.syncState)
+    }
+
+    @Test fun immediateDebouncedAttendanceIsRetainedAsTerminalHistory() {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{
+            "success":false,"attendanceEventId":"event-1","status":"DEBOUNCED",
+            "attendanceRecordId":null,"attendanceAction":null,"message":"Attendance is too close to the prior event."
+        }"""))
+
+        val outcome = service().record(TEST_USER_ID, TEST_EMPLOYEE_ID)
+
+        assertEquals(AttendanceRecordStatus.DUPLICATE_IGNORED, outcome.status)
+        assertEquals(AttendanceSyncState.DEBOUNCED, repository.get("event-1")!!.syncState)
+        assertTrue(repository.pending(50).isEmpty())
+    }
+
+    @Test fun immediateBusinessRejectionIsRetainedAsTerminalHistory() {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{
+            "success":false,"attendanceEventId":"event-1","status":"REJECTED",
+            "attendanceRecordId":null,"attendanceAction":null,"message":"No open session found to check out."
+        }"""))
+
+        val outcome = service().record(TEST_USER_ID, TEST_EMPLOYEE_ID)
+
+        assertEquals(AttendanceRecordStatus.REJECTED, outcome.status)
+        assertEquals(AttendanceSyncState.REJECTED, repository.get("event-1")!!.syncState)
+        assertEquals("No open session found to check out.", repository.get("event-1")!!.rejectionReason)
+        assertTrue(repository.pending(50).isEmpty())
+    }
+
+    @Test fun retryableServerFailureSchedulesPendingEvent() {
+        var schedules = 0
+        server.enqueue(MockResponse().setResponseCode(503).setBody("{\"code\":\"FPA-999\"}"))
+
+        val outcome = service(pendingSyncScheduler = { schedules++ }).record(TEST_USER_ID, TEST_EMPLOYEE_ID)
+
+        assertEquals(AttendanceRecordStatus.PENDING, outcome.status)
+        assertEquals(BackendApiError.SERVER_FAILURE, outcome.error)
+        assertEquals(1, schedules)
+        assertEquals(AttendanceSyncState.PENDING, repository.get("event-1")!!.syncState)
+    }
+
     private fun service(
         networkAvailable: Boolean = true,
         eventIdProvider: () -> String = { "event-${nextId++}" },
         api: FingerprintApiService = FingerprintApiClient(config()).create(),
         pendingSyncScheduler: (() -> Unit)? = null,
-    ) = AttendanceService(api, config(), { TEST_DEVICE_ID }, repository,
+        deviceId: String = TEST_DEVICE_ID,
+    ) = AttendanceService(api, config(), { deviceId }, repository,
         networkAvailable = { networkAvailable }, eventIdProvider = eventIdProvider,
         timestampProvider = { TEST_TIMESTAMP }, pendingSyncScheduler = pendingSyncScheduler)
 
@@ -275,6 +397,14 @@ class AttendanceServiceTest {
             events[eventId] = events.getValue(eventId).copy(syncState = AttendanceSyncState.SYNCED,
                 attendanceRecordId = attendanceRecordId, attendanceAction = attendanceAction,
                 serverTimestamp = serverTimestamp)
+        }
+        override fun markRejected(eventId: String, rejectionReason: String?) {
+            events[eventId] = events.getValue(eventId).copy(syncState = AttendanceSyncState.REJECTED,
+                rejectionReason = rejectionReason)
+        }
+        override fun markDebounced(eventId: String, reason: String?) {
+            events[eventId] = events.getValue(eventId).copy(syncState = AttendanceSyncState.DEBOUNCED,
+                rejectionReason = reason)
         }
         fun all() = events.values.toList()
     }

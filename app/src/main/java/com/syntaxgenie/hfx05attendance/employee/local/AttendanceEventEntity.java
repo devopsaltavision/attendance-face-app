@@ -12,6 +12,7 @@ import androidx.room.PrimaryKey;
 })
 public class AttendanceEventEntity {
     @PrimaryKey @NonNull @ColumnInfo(name = "event_id") public final String eventId;
+    @NonNull @ColumnInfo(name = "device_id") public final String deviceId;
     @NonNull @ColumnInfo(name = "user_id") public final String userId;
     @NonNull @ColumnInfo(name = "employee_id") public final String employeeId;
     @NonNull @ColumnInfo(name = "device_timestamp") public final String deviceTimestamp;
@@ -21,15 +22,19 @@ public class AttendanceEventEntity {
     @Nullable @ColumnInfo(name = "server_timestamp") public final String serverTimestamp;
     @Nullable @ColumnInfo(name = "requested_action") public final String requestedAction;
     @Nullable @ColumnInfo(name = "biometric_type") public final String biometricType;
+    @NonNull @ColumnInfo(name = "source") public final String source;
+    @Nullable @ColumnInfo(name = "rejection_reason") public final String rejectionReason;
 
-    public AttendanceEventEntity(@NonNull String eventId, @NonNull String userId,
+    public AttendanceEventEntity(@NonNull String eventId, @NonNull String deviceId, @NonNull String userId,
             @NonNull String employeeId, @NonNull String deviceTimestamp, @NonNull String syncState,
             @Nullable String attendanceRecordId, @Nullable String attendanceAction,
-            @Nullable String serverTimestamp, @Nullable String requestedAction, @Nullable String biometricType) {
-        this.eventId = eventId; this.userId = userId; this.employeeId = employeeId;
+            @Nullable String serverTimestamp, @Nullable String requestedAction, @Nullable String biometricType,
+            @NonNull String source, @Nullable String rejectionReason) {
+        this.eventId = eventId; this.deviceId = deviceId; this.userId = userId; this.employeeId = employeeId;
         this.deviceTimestamp = deviceTimestamp; this.syncState = syncState;
         this.attendanceRecordId = attendanceRecordId; this.attendanceAction = attendanceAction;
         this.serverTimestamp = serverTimestamp;
         this.requestedAction = requestedAction; this.biometricType = biometricType;
+        this.source = source; this.rejectionReason = rejectionReason;
     }
 }

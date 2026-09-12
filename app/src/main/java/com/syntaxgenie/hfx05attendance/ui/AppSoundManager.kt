@@ -39,14 +39,18 @@ class AppSoundManager(context: Context) {
     }
 
     private val Event.durationMs: Int get() = when (this) {
-        Event.ERROR -> 220
-        else -> 140
+        Event.SCAN_READY -> 180
+        Event.CAPTURE_ACCEPTED -> 200
+        Event.SUCCESS -> 260
+        Event.WARNING -> 240
+        Event.ERROR -> 320
     }
 
     companion object {
         private const val PREFERENCES = "app_sound_feedback"
         private const val SOUND_FEEDBACK_ENABLED = "sound_feedback_enabled"
-        private const val TONE_VOLUME = 60
+        // App-local ToneGenerator gain only. Never changes the device's global stream volume.
+        private const val TONE_VOLUME = 90
 
         internal fun isPlaybackEnabled(soundFeedbackEnabled: Boolean): Boolean = soundFeedbackEnabled
     }

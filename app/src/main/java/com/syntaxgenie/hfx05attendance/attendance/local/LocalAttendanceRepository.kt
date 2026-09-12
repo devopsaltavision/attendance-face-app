@@ -16,10 +16,13 @@ class LocalAttendanceRepository(private val dao: AttendanceDao) : AttendanceRepo
         attendanceAction: String?,
         serverTimestamp: String,
     ) = dao.markSynced(eventId, attendanceRecordId, attendanceAction, serverTimestamp)
-    override fun delete(eventId: String): Boolean = dao.delete(eventId) > 0
+    override fun markRejected(eventId: String, rejectionReason: String?) = dao.markRejected(eventId, rejectionReason)
+    override fun markDebounced(eventId: String, reason: String?) = dao.markDebounced(eventId, reason)
 
-    private fun AttendanceEvent.toEntity() = AttendanceEventEntity(eventId, userId, employeeId,
-        deviceTimestamp, syncState.name, attendanceRecordId, attendanceAction, serverTimestamp, requestedAction, biometricType)
-    private fun AttendanceEventEntity.toRecord() = AttendanceEvent(eventId, userId, employeeId,
-        deviceTimestamp, AttendanceSyncState.valueOf(syncState), attendanceRecordId, attendanceAction, serverTimestamp, requestedAction, biometricType)
+    private fun AttendanceEvent.toEntity() = AttendanceEventEntity(eventId, deviceId, userId, employeeId,
+        deviceTimestamp, syncState.name, attendanceRecordId, attendanceAction, serverTimestamp, requestedAction,
+        biometricType, source, rejectionReason)
+    private fun AttendanceEventEntity.toRecord() = AttendanceEvent(eventId, deviceId, userId, employeeId,
+        deviceTimestamp, AttendanceSyncState.valueOf(syncState), attendanceRecordId, attendanceAction, serverTimestamp,
+        requestedAction, biometricType, source, rejectionReason)
 }
