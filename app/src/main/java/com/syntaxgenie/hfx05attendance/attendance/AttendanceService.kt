@@ -13,13 +13,16 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
-enum class AttendanceRecordStatus { SYNCED, PENDING, DUPLICATE_IGNORED }
+enum class AttendanceRecordStatus { SYNCED, PENDING, REJECTED, DUPLICATE_IGNORED }
+
+enum class AttendanceBusinessRejection { NO_OPEN_SESSION, UNKNOWN }
 
 data class AttendanceRecordOutcome(
     val event: AttendanceEvent,
     val status: AttendanceRecordStatus,
     val error: BackendApiError? = null,
     val message: String? = null,
+    val businessRejection: AttendanceBusinessRejection? = null,
 )
 
 data class AttendanceSyncSummary(
@@ -84,6 +87,10 @@ class AttendanceService(
                         repository.markSynced(result.attendanceEventId, result.attendanceRecordId,
                             result.attendanceAction, value.serverTimestamp)
                         synced++
+                    } else if (result.status == REJECTED) {
+                        repository.delete(result.attendanceEventId)
+                        logWarning("Attendance queued event rejected eventId=${result.attendanceEventId} " +
+                            "message=${result.message.orEmpty()}")
                     }
                 }
                 AttendanceSyncSummary(pending.size, synced, pending.size - synced)
@@ -99,7 +106,7 @@ class AttendanceService(
             return AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING, BackendApiError.NETWORK_UNAVAILABLE)
         }
         return try {
-            val response = api.recordAttendance(RecordAttendanceRequestDto(
+            val request = RecordAttendanceRequestDto(
                 attendanceEventId = event.eventId,
                 deviceId = deviceIdProvider().trim(),
                 userId = event.userId,
@@ -107,27 +114,40 @@ class AttendanceService(
                 deviceTimestamp = event.deviceTimestamp,
                 action = event.requestedAction,
                 biometricType = event.biometricType,
-            )).execute()
+            )
+            logDebug("Attendance request eventId=${request.attendanceEventId} deviceId=${request.deviceId} " +
+                "userId=${request.userId} employeeId=${request.employeeId} timestamp=${request.deviceTimestamp} " +
+                "clientSequence=${request.clientSequence} action=${request.action} " +
+                "biometricType=${request.biometricType} source=${request.source}")
+            val response = api.recordAttendance(request).execute()
             if (!response.isSuccessful) {
                 val body = response.errorBody()?.string().orEmpty()
                 val code = Regex("FPA-\\d{3}").find(body)?.value
-                logHttpFailure(response.code(), code, body)
-                AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING,
-                    BackendErrorMapper.fromHttp(response.code(), code))
+                val mappedError = BackendErrorMapper.fromHttp(response.code(), code)
+                logHttpFailure(response.code(), code, mappedError, body)
+                AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING, mappedError)
             } else {
+                logDebug("Attendance HTTP result status=${response.code()} rawBody=${response.rawBodyForLog()}")
                 val value = response.body()
-                    ?: return AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING, BackendApiError.INVALID_RESPONSE)
+                    ?: return invalidResponse(event, "HTTP success response body was null")
+                logDebug("Attendance parsed response eventId=${value.attendanceEventId} status=${value.status} " +
+                    "serverTimestamp=${value.serverTimestamp} success=${value.success}")
                 if (value.attendanceEventId != event.eventId) {
-                    return AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING, BackendApiError.INVALID_RESPONSE)
+                    return invalidResponse(event, "attendanceEventId mismatch expected=${event.eventId} actual=${value.attendanceEventId}")
                 }
                 if (value.status == DUPLICATE_IGNORED) {
                     repository.delete(event.eventId)
                     AttendanceRecordOutcome(event, AttendanceRecordStatus.DUPLICATE_IGNORED,
                         message = value.message)
+                } else if (value.status == REJECTED) {
+                    repository.delete(event.eventId)
+                    val rejection = businessRejection(value.message)
+                    logWarning("Attendance business rejection reason=$rejection message=${value.message.orEmpty()}")
+                    AttendanceRecordOutcome(event, AttendanceRecordStatus.REJECTED,
+                        businessRejection = rejection)
                 } else if (value.status == RECORDED || value.status == ALREADY_RECORDED) {
                     val serverTimestamp = value.serverTimestamp?.takeIf { it.isNotBlank() }
-                        ?: return AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING,
-                            BackendApiError.INVALID_RESPONSE)
+                        ?: return invalidResponse(event, "serverTimestamp missing or blank for status=${value.status}")
                     repository.markSynced(event.eventId, value.attendanceRecordId,
                         value.attendanceAction, serverTimestamp)
                     AttendanceRecordOutcome(repository.get(event.eventId) ?: event,
@@ -140,14 +160,34 @@ class AttendanceService(
                 }
             }
         } catch (error: Throwable) {
-            logWarning("Attendance request failed: ${error.javaClass.simpleName}: ${error.message.orEmpty()}")
-            AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING, BackendErrorMapper.fromThrowable(error))
+            val mappedError = BackendErrorMapper.fromThrowable(error)
+            logWarning("Attendance request failure type=${error.javaClass.name} mappedError=$mappedError " +
+                "message=${error.message.orEmpty()}")
+            AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING, mappedError)
         }
     }
 
-    private fun logHttpFailure(status: Int, code: String?, body: String) {
+    private fun invalidResponse(event: AttendanceEvent, reason: String): AttendanceRecordOutcome {
+        logWarning("Attendance response rejected mappedError=${BackendApiError.INVALID_RESPONSE} reason=$reason")
+        return AttendanceRecordOutcome(event, AttendanceRecordStatus.PENDING, BackendApiError.INVALID_RESPONSE)
+    }
+
+    private fun businessRejection(message: String?): AttendanceBusinessRejection =
+        if (message == NO_OPEN_SESSION_MESSAGE) AttendanceBusinessRejection.NO_OPEN_SESSION
+        else AttendanceBusinessRejection.UNKNOWN
+
+    private fun logHttpFailure(status: Int, code: String?, mappedError: BackendApiError, body: String) {
         val message = Regex("\\\"message\\\"\\s*:\\s*\\\"([^\\\"]*)").find(body)?.groupValues?.getOrNull(1).orEmpty()
-        logWarning("Attendance HTTP failure status=$status code=${code.orEmpty()} message=$message")
+        logWarning("Attendance HTTP failure status=$status backendCode=${code.orEmpty()} mappedError=$mappedError " +
+            "message=$message errorBody=$body")
+    }
+
+    private fun retrofit2.Response<*>.rawBodyForLog(): String = runCatching {
+        raw().peekBody(MAX_LOGGED_BODY_BYTES).string()
+    }.getOrElse { "<unavailable: ${it.javaClass.simpleName}>" }
+
+    private fun logDebug(message: String) {
+        runCatching { Log.d(TAG, message) }
     }
 
     private fun logWarning(message: String) {
@@ -172,6 +212,9 @@ class AttendanceService(
         const val RECORDED = "RECORDED"
         const val ALREADY_RECORDED = "ALREADY_RECORDED"
         const val DUPLICATE_IGNORED = "DUPLICATE_IGNORED"
+        const val REJECTED = "REJECTED"
         const val FAILED = "FAILED"
+        const val NO_OPEN_SESSION_MESSAGE = "No open session found to check out."
+        const val MAX_LOGGED_BODY_BYTES = 16L * 1024L
     }
 }

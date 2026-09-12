@@ -46,6 +46,10 @@ import com.syntaxgenie.hfx05attendance.face.calibration.FaceCalibrationFirestore
 import com.syntaxgenie.hfx05attendance.face.calibration.FaceRecognitionConfigMode
 import com.syntaxgenie.hfx05attendance.face.index.FaceTemplateIndexManager
 import com.syntaxgenie.hfx05attendance.face.index.FaceTemplateIndexSnapshot
+import com.syntaxgenie.hfx05attendance.face.liveness.PassiveSpoofDetector
+import com.syntaxgenie.hfx05attendance.face.liveness.PassiveSpoofMode
+import com.syntaxgenie.hfx05attendance.face.liveness.PassiveSpoofPolicy
+import com.syntaxgenie.hfx05attendance.face.liveness.PassiveSpoofAssessment
 import com.syntaxgenie.hfx05attendance.ui.KioskWindowInsets
 
 class FaceScanActivity : AppCompatActivity(), SurfaceHolder.Callback {
@@ -64,6 +68,10 @@ class FaceScanActivity : AppCompatActivity(), SurfaceHolder.Callback {
     @Volatile private var sessionGeneration = 0L
     private val sfaceInFlight = AtomicBoolean(false)
     private val validation = AuraFaceValidationSession()
+    private val passiveSpoofDetector = PassiveSpoofDetector()
+    private val passiveSpoofMode = PassiveSpoofMode.OBSERVE_ONLY
+    private var lastPassiveSpoofNanos = 0L
+    private var latestPassiveSpoofAssessment: PassiveSpoofAssessment? = null
     private var employeeValidation: SFaceEmployeeValidationSession? = null
     private var debugCandidates: List<SFaceDebugCandidate> = emptyList()
     private val debugQueries = mutableListOf<ByteArray>()
@@ -187,11 +195,19 @@ class FaceScanActivity : AppCompatActivity(), SurfaceHolder.Callback {
                             "latency=${performance.averageLatencyMillis}/${performance.p95LatencyMillis}/${performance.maximumLatencyMillis}ms")
                 },
                 onDetectionOutcome = { input, outcome ->
-                    if (outcome is FaceDetectionOutcome.Detected && outcome.faces.size == 1 && SFaceAlignmentMapper.validate(outcome.faces.single(), input.frame.width, input.frame.height) == null) {
+                    val spoofAssessment = if (outcome is FaceDetectionOutcome.Detected && outcome.faces.size == 1 &&
+                        System.nanoTime() - lastPassiveSpoofNanos > PASSIVE_SPOOF_INTERVAL_NANOS) {
+                        lastPassiveSpoofNanos = System.nanoTime()
+                        passiveSpoofDetector.analyze(input.frame, outcome.faces.single())
+                    } else null
+                    if (spoofAssessment != null) latestPassiveSpoofAssessment = spoofAssessment
+                    val allowRecognition = latestPassiveSpoofAssessment?.let { PassiveSpoofPolicy.allowsRecognition(passiveSpoofMode, it.result) } ?: true
+                    if (!allowRecognition) runOnUiThread { status.text = "Couldn't verify live face. Please look directly at the camera and try again." }
+                    if (outcome is FaceDetectionOutcome.Detected && outcome.faces.size == 1 && allowRecognition && SFaceAlignmentMapper.validate(outcome.faces.single(), input.frame.width, input.frame.height) == null) {
                         latestCandidate = FaceFeatureExtractionInput(input.frame, outcome.faces.single(), input.rotationDegrees, input.mirrorHorizontally)
                     }
                     if (outcome is FaceDetectionOutcome.Detected && outcome.faces.size == 1 &&
-                        (debugCandidates.isNotEmpty() || FaceScanState.HoldStill == currentScanState) && System.nanoTime() - lastSfaceNanos > 1_000_000_000L) {
+                        allowRecognition && (debugCandidates.isNotEmpty() || FaceScanState.HoldStill == currentScanState) && System.nanoTime() - lastSfaceNanos > 1_000_000_000L) {
                         lastSfaceNanos = System.nanoTime()
                         val face = outcome.faces.single()
                         val extractionGeneration = sessionGeneration
@@ -388,6 +404,9 @@ class FaceScanActivity : AppCompatActivity(), SurfaceHolder.Callback {
         debugResultShown = false
         debugFlowOpened = false
         lastSfaceNanos = 0L
+        lastPassiveSpoofNanos = 0L
+        latestPassiveSpoofAssessment = null
+        passiveSpoofDetector.reset()
         latestCandidate = null
         lastLoggedState = null
         sfaceInFlight.set(false)
@@ -405,6 +424,7 @@ class FaceScanActivity : AppCompatActivity(), SurfaceHolder.Callback {
     companion object {
         private const val LOG_TAG = "FaceScan"
         private const val SCAN_TIMEOUT_MS = 15_000L
+        private const val PASSIVE_SPOOF_INTERVAL_NANOS = 150_000_000L
         private const val REQUEST_FACE_FLOW = 3002
         const val EXTRA_VALIDATION_EMPLOYEE_ID = "validationEmployeeId"
         const val EXTRA_DEBUG_IDENTIFICATION = "debugIdentification"

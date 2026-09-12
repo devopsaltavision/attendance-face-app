@@ -16,6 +16,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.syntaxgenie.hfx05attendance.R
 import com.syntaxgenie.hfx05attendance.attendance.AttendanceRecordOutcome
 import com.syntaxgenie.hfx05attendance.attendance.AttendanceRecordStatus
+import com.syntaxgenie.hfx05attendance.attendance.AttendanceBusinessRejection
 import com.syntaxgenie.hfx05attendance.attendance.AttendanceService
 import com.syntaxgenie.hfx05attendance.attendance.PendingAttendanceSyncScheduler
 import com.syntaxgenie.hfx05attendance.attendance.local.LocalAttendanceRepository
@@ -408,6 +409,8 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
                     outcome?.status == AttendanceRecordStatus.SYNCED ->
                         renderAttendanceSuccess(employee, action, outcome.event.serverTimestamp ?: outcome.event.deviceTimestamp)
                     outcome.isOfflinePending() -> renderAttendanceOfflineSaved(action)
+                    outcome?.status == AttendanceRecordStatus.REJECTED ->
+                        renderAttendanceRejected(outcome.businessRejection)
                     else -> renderAttendanceFailure(employee, action, checkIn, checkOut)
                 }
             }
@@ -447,6 +450,17 @@ class FaceRecognitionFlowActivity : AppCompatActivity() {
         renderMessage("Attendance could not be recorded.", "Please try again.")
         checkIn.isEnabled = true; checkOut.isEnabled = true
         content.addView(actionButton("TRY AGAIN", R.drawable.face_action_not_you, 64) { render(FaceFlowState.ATTENDANCE_ACTION) }, frameParams(Gravity.BOTTOM, bottomMargin = 8))
+    }
+
+    private fun renderAttendanceRejected(rejection: AttendanceBusinessRejection?) {
+        soundManager.play(AppSoundManager.Event.ERROR)
+        content.removeAllViews()
+        if (rejection == AttendanceBusinessRejection.NO_OPEN_SESSION) {
+            renderMessage("Cannot check out", "No active check-in found. Please check in first.")
+        } else {
+            renderMessage("Attendance could not be recorded.", "Attendance could not be recorded.")
+        }
+        Handler(Looper.getMainLooper()).postDelayed({ if (!isFinishing) returnHome() }, ATTENDANCE_RESULT_DURATION_MS)
     }
 
     private fun AttendanceRecordOutcome?.isOfflinePending(): Boolean =
