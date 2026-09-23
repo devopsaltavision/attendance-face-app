@@ -43,6 +43,7 @@
         <activity android:name=".face.scan.FaceRegistrationActivity" android:exported="false" />
         <activity android:name=".face.calibration.StaticImageFaceCalibrationActivity" android:exported="false" />
         <activity android:name=".FingerprintRegistrationActivity" android:exported="false" />
+        <activity android:name=".FingerprintScanActivity" android:exported="false" />
         <activity android:name=".FingerprintManagementActivity" android:exported="false" />
         <activity android:name=".EmployeeBiometricManagementActivity" android:exported="false" />
         <activity android:name=".FaceRegistrationPhotosActivity" android:exported="false" />

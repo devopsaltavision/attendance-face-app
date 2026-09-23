@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/fingerprintScanRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/attendance_ready_background"
+    android:padding="24dp">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/fingerprintScanToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/attendance_surface"
+        app:navigationIcon="?attr/homeAsUpIndicator"
+        app:title="@string/fingerprint_recognition" />
+
+    <ImageView
+        android:id="@+id/fingerprintScanIcon"
+        android:layout_width="112dp"
+        android:layout_height="112dp"
+        android:layout_marginTop="56dp"
+        android:contentDescription="@string/fingerprint_recognition"
+        android:src="@drawable/ic_fingerprint"
+        android:tint="@color/attendance_scanning"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/fingerprintScanToolbar" />
+
+    <com.syntaxgenie.hfx05attendance.ui.SemanticResultView
+        android:id="@+id/fingerprintScanResult"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/fingerprintScanIcon" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/fingerprintScanAction"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:layout_marginBottom="12dp"
+        android:text="@string/cancel"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+</androidx.constraintlayout.widget.ConstraintLayout>
